@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"os"
 
 	v1alpha1 "github.com/aerogear/ups-sidecar/pkg/apis/mobile/v1alpha1"
 	mclient "github.com/aerogear/ups-sidecar/pkg/client/mobile/clientset/versioned"
@@ -10,8 +9,7 @@ import (
 	"k8s.io/client-go/rest"
 )
 
-func main() {
-
+func waitForEvent() {
 	// creates the in-cluster config
 	config, err := rest.InClusterConfig()
 	if err != nil {
@@ -22,19 +20,24 @@ func main() {
 	if err != nil {
 		panic(err.Error())
 	}
-	wi, err := clientset.MobileV1alpha1().MobileClients("test").Watch(metav1.ListOptions{})
+	wi, err := clientset.MobileV1alpha1().MobileClients("myproject").Watch(metav1.ListOptions{})
 	if err != nil {
 		panic(err)
 	}
+
+	fmt.Println("Before loop")
+
 	for update := range wi.ResultChan() {
 		client := update.Object.(*v1alpha1.MobileClient)
 		fmt.Println("update", client)
 	}
+
+	fmt.Println("Received result")
 }
 
-func homeDir() string {
-	if h := os.Getenv("HOME"); h != "" {
-		return h
+func main() {
+	fmt.Println("Waiting for mobile client events...")
+	for {
+		waitForEvent()
 	}
-	return os.Getenv("USERPROFILE") // windows
 }

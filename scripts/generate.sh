@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-k8=$GOPATH/src/k8s.io
+k8=$GOPATH/src/kubernetes
 code_gen=${k8}/code-generator
 
 
