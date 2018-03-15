@@ -29,7 +29,8 @@ func waitForEvent() {
 
 	for update := range wi.ResultChan() {
 		client := update.Object.(*v1alpha1.MobileClient)
-		fmt.Println("update", client)
+		fmt.Println("client", client)
+		fmt.Println("client Labels: ", client.Labels)
 	}
 
 	fmt.Println("Received result")
