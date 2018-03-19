@@ -12,80 +12,28 @@ import (
 	"github.com/aerogear/ups-sidecar/pkg/apis/mobile/v1alpha1"
 	mclient "github.com/aerogear/ups-sidecar/pkg/client/mobile/clientset/versioned"
 
-	"net/http"
-
-	"io/ioutil"
-	"strings"
-
-	"bytes"
-
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/rest"
 )
 
-type upsPayload struct {
-	ProjectNumber string `json:"projectNumber"`
-	GoogleKey     string `json:"googleKey"`
-	Name          string `json:"name"`
-}
-
-type upsAppData struct {
-	ApplicationId string `json:"applicationId"`
-	InternalUri   string `json:"internalUri"`
-}
-
 func convertSecretToUpsSecret(s *aerogear.Secret) *upsAppData {
 	return &upsAppData{
 		ApplicationId: string(s.Data["applicationId"]),
-		InternalUri:   string(s.Data["internalUri"]),
 	}
 }
 
-func doesVariantExist(data *upsAppData) bool {
-	fmt.Println("Checking if a variant already exists")
-	var url = "http://localhost:8080/rest/applications/" + data.ApplicationId + "/android"
-	resp, err := http.Get(url)
-	if err != nil {
-		fmt.Println(err.Error())
-		return true
-	} else {
-		defer resp.Body.Close()
-		body, _ := ioutil.ReadAll(resp.Body)
-		var stringBody = string(body)
-		result := strings.Trim(stringBody, "\n") == "[]"
-		return !result
-	}
-}
-
-func createVariant(data *upsAppData, json []byte) {
-	fmt.Println("Creating a new variant in UPS")
-	var url = "http://localhost:8080/rest/applications/" + data.ApplicationId + "/android"
-
-	fmt.Println("Sending", string(json), "to", url)
-
-	req, _ := http.NewRequest("POST", url, bytes.NewBuffer(json))
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Accept", "application/json")
-	client := http.Client{}
-	_, err := client.Do(req)
-
-	if err != nil {
-		fmt.Println("UPS request error", err.Error())
-	}
-}
-
-func addAndroidVariant(labels map[string]string, data *upsAppData, name string) {
+func addAndroidVariant(labels map[string]string, client *upsClient, name string) {
 	if val, ok := labels["googleKey"]; ok {
-		payload := &upsPayload{
+		payload := &upsVariant{
 			ProjectNumber: labels["projectNumber"],
-			GoogleKey: val,
-			Name:      name,
+			GoogleKey:     val,
+			Name:          name,
 		}
 
 		jsonString, _ := json.Marshal(payload)
 
-		if !doesVariantExist(data) {
-			createVariant(data, jsonString)
+		if !client.doesVariantWithNameExist(name) {
+			client.createVariant(jsonString)
 		}
 	}
 }
@@ -105,14 +53,16 @@ func waitForEvent(namespace string, config *rest.Config) {
 
 	// Query the results from the watch channel
 	for update := range wi.ResultChan() {
-		client := update.Object.(*v1alpha1.MobileClient)
-		labels := client.Labels
+		updatedClient := update.Object.(*v1alpha1.MobileClient)
+		labels := updatedClient.Labels
 
 		if len(labels) > 0 {
 			k8client := getKubeClient(config)
 			upsSecret, _ := k8client.CoreV1().Secrets(namespace).Get("unified-push-server", metav1.GetOptions{})
 			data := convertSecretToUpsSecret(upsSecret)
-			addAndroidVariant(labels, data, client.Name)
+			client := upsClient{config: data}
+
+			addAndroidVariant(labels, &client, updatedClient.Name)
 		}
 	}
 }
