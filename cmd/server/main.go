@@ -24,8 +24,9 @@ import (
 )
 
 type upsPayload struct {
-	GoogleKey string `json:"googleKey"`
-	Name      string `json:"name"`
+	ProjectNumber string `json:"projectNumber"`
+	GoogleKey     string `json:"googleKey"`
+	Name          string `json:"name"`
 }
 
 type upsAppData struct {
@@ -76,6 +77,7 @@ func createVariant(data *upsAppData, json []byte) {
 func addAndroidVariant(labels map[string]string, data *upsAppData, name string) {
 	if val, ok := labels["googleKey"]; ok {
 		payload := &upsPayload{
+			ProjectNumber: labels["projectNumber"],
 			GoogleKey: val,
 			Name:      name,
 		}
