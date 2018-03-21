@@ -16,6 +16,6 @@ Make sure that you are logged in with `oc` and use the right namespace.
 
 ```
 $ make build_linux
-$ docker build -t docker.io/pb82/ups-sidecar:latest -f Dockerfile .
+$ docker build -t docker.io/aerogear/ups-sidecar:latest -f Dockerfile .
 $ oc create -f template.json
 ```
