@@ -46,13 +46,18 @@ func (client *upsClient) createVariant(json []byte) {
 
 	fmt.Println("Sending", string(json), "to", url)
 
-	req, _ := http.NewRequest("POST", url, bytes.NewBuffer(json))
+	req, err := http.NewRequest("POST", url, bytes.NewBuffer(json))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "application/json")
 	httpClient := http.Client{}
-	_, err := httpClient.Do(req)
+	resp, err := httpClient.Do(req)
 
 	if err != nil {
 		fmt.Println("UPS request error", err.Error())
+	} else {
+		defer resp.Body.Close()
+		if resp.StatusCode >= 400 {
+			fmt.Println(resp)
+		}
 	}
 }
