@@ -16,15 +16,15 @@ import (
 	"k8s.io/client-go/rest"
 )
 
-func convertSecretToUpsSecret(s *aerogear.Secret) *upsAppData {
-	return &upsAppData{
+func convertSecretToUpsSecret(s *aerogear.Secret) *pushApplication {
+	return &pushApplication{
 		ApplicationId: string(s.Data["applicationId"]),
 	}
 }
 
 func addAndroidVariant(labels map[string]string, client *upsClient, name string) {
 	if val, ok := labels["googleKey"]; ok {
-		payload := &upsVariant{
+		payload := &androidVariant{
 			ProjectNumber: labels["projectNumber"],
 			GoogleKey:     val,
 			Name:          name,
