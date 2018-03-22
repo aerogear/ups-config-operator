@@ -27,7 +27,7 @@ func addAndroidVariant(labels map[string]string, client *upsClient, name string)
 		payload := &androidVariant{
 			ProjectNumber: labels["projectNumber"],
 			GoogleKey:     val,
-			Name:          name,
+			variant: variant{Name:name},
 		}
 
 		jsonString, _ := json.Marshal(payload)
