@@ -9,7 +9,7 @@ import (
 )
 
 type upsClient struct {
-	config *upsAppData
+	config *pushApplication
 }
 
 func (client *upsClient) doesVariantWithNameExist(name string) bool {
@@ -24,7 +24,7 @@ func (client *upsClient) doesVariantWithNameExist(name string) bool {
 		defer resp.Body.Close()
 		body, _ := ioutil.ReadAll(resp.Body)
 
-		variants := make([]upsVariant, 0)
+		variants := make([]androidVariant, 0)
 		json.Unmarshal(body, &variants)
 
 		for _, variant := range variants {
