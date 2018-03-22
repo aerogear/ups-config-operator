@@ -14,7 +14,9 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/rest"
-)
+
+	uuid "github.com/satori/go.uuid"
+	)
 
 func convertSecretToUpsSecret(s *aerogear.Secret) *pushApplication {
 	return &pushApplication{
@@ -27,7 +29,11 @@ func addAndroidVariant(labels map[string]string, client *upsClient, name string)
 		payload := &androidVariant{
 			ProjectNumber: labels["projectNumber"],
 			GoogleKey:     val,
-			variant: variant{Name:name},
+			variant: variant{
+				Name:       name,
+				VariantID:  uuid.NewV4().String(),
+				Secret:     uuid.NewV4().String(),
+			},
 		}
 
 		jsonString, _ := json.Marshal(payload)
