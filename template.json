@@ -15,7 +15,7 @@
         "containers": [
           {
             "name": "ups-sidecar",
-            "image": "pb82/ups-sidecar"
+            "image": "aerogear/ups-sidecar"
           }
         ]
       }
