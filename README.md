@@ -1,6 +1,7 @@
 # Sidecar service to sync UPS Variants with Mobile Clients
 
 [![Go Report Card](https://goreportcard.com/badge/github.com/aerogear/ups-sidecar)](https://goreportcard.com/report/github.com/aerogear/ups-sidecar)
+[![CircleCI](https://circleci.com/gh/aerogear/ups-sidecar.svg?style=svg)](https://circleci.com/gh/aerogear/ups-sidecar)
 
 *Note* Just a POC at the moment
 
