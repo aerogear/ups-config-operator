@@ -1,10 +1,10 @@
 package main
 
 type variant struct {
-	Name          string `json:"name"`
-	Description   string `json:"description"`
-	VariantID     string `json:"variantID"`
-	Secret        string `json:"secret"`
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	VariantID   string `json:"variantID"`
+	Secret      string `json:"secret"`
 }
 
 type androidVariant struct {

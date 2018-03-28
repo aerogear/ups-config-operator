@@ -15,6 +15,8 @@ import (
 	"k8s.io/client-go/kubernetes"
 	mobile "k8s.io/client-go/pkg/api/v1"
 	"k8s.io/client-go/rest"
+
+	v1 "k8s.io/client-go/pkg/api/v1"
 )
 
 var k8client *kubernetes.Clientset
@@ -46,9 +48,39 @@ func deleteSecret(name string) {
 	err := k8client.CoreV1().Secrets(os.Getenv(NamespaceKey)).Delete(name, nil)
 	if err != nil {
 		log.Error("Error deleting bind secret", err)
+	} else {
+		log.Info(fmt.Sprintf("Secret `%s` has been deleted", name))
+	}
+}
+
+func createAndroidVariantConfigMap(variant *androidVariant) {
+	variantName := variant.Name + "-config-map"
+
+	payload := v1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: variantName,
+			Labels: map[string]string{
+				"mobile":      "enabled",
+				"serviceName": "ups",
+			},
+		},
+		Data: map[string]string{
+			"name":          variant.Name,
+			"description":   variant.Description,
+			"variantID":     variant.VariantID,
+			"secret":        variant.Secret,
+			"googleKey":     variant.GoogleKey,
+			"projectNumber": variant.ProjectNumber,
+			"type":          "android",
+		},
 	}
 
-	log.Info(fmt.Sprintf("Secret `%s` has been deleted", name))
+	_, err := k8client.CoreV1().ConfigMaps(os.Getenv(NamespaceKey)).Create(&payload)
+	if err != nil {
+		log.Error("Error creating config map", err)
+	} else {
+		log.Info(fmt.Sprintf("Config map `%s` for variant created", variantName))
+	}
 }
 
 func handleAndroidVariant(key string, name string, pn string) {
@@ -70,7 +102,12 @@ func handleAndroidVariant(key string, name string, pn string) {
 		}
 
 		log.Info("Creating a new android variant", payload)
-		pushClient.createAndroidVariant(payload)
+		success, variant := pushClient.createAndroidVariant(payload)
+		if success {
+			createAndroidVariantConfigMap(variant)
+		} else {
+			log.Warn("No variant has been created in UPS, skipping config map")
+		}
 	} else {
 		log.Info(fmt.Sprint("A variant for google key '%s' already exists", key))
 	}

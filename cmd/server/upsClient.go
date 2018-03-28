@@ -44,7 +44,7 @@ func (client *upsClient) hasAndroidVariant(key string) bool {
 	return false
 }
 
-func (client *upsClient) createAndroidVariant(variant *androidVariant) {
+func (client *upsClient) createAndroidVariant(variant *androidVariant) (bool, *androidVariant) {
 	url := fmt.Sprintf("%s/%s/android", BaseUrl, client.config.ApplicationId)
 	log.Info("UPS request", url)
 
@@ -63,6 +63,12 @@ func (client *upsClient) createAndroidVariant(variant *androidVariant) {
 		panic(err.Error())
 	}
 
+	log.Info("UPS responded with status code ", resp.Status)
+
 	defer resp.Body.Close()
-	log.Info("UPS response", resp)
+	body, _ := ioutil.ReadAll(resp.Body)
+	var createdVariant androidVariant
+	json.Unmarshal(body, &createdVariant)
+
+	return resp.StatusCode == 201, &createdVariant
 }
