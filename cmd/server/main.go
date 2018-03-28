@@ -9,8 +9,8 @@ import (
 
 	aerogear "k8s.io/client-go/pkg/api/v1"
 
-	"github.com/aerogear/ups-sidecar/pkg/apis/mobile/v1alpha1"
-	mclient "github.com/aerogear/ups-sidecar/pkg/client/mobile/clientset/versioned"
+	"github.com/aerogear/ups-config-operator/pkg/apis/mobile/v1alpha1"
+	mclient "github.com/aerogear/ups-config-operator/pkg/client/mobile/clientset/versioned"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/rest"

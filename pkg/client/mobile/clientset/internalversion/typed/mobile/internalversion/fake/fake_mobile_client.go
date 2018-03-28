@@ -17,7 +17,7 @@ limitations under the License.
 package fake
 
 import (
-	internalversion "github.com/aerogear/ups-sidecar/pkg/client/mobile/clientset/internalversion/typed/mobile/internalversion"
+	internalversion "github.com/aerogear/ups-config-operator/pkg/client/mobile/clientset/internalversion/typed/mobile/internalversion"
 	rest "k8s.io/client-go/rest"
 	testing "k8s.io/client-go/testing"
 )

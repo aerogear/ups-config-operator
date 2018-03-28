@@ -1,4 +1,4 @@
-APP_NAME = ups-sidecar
+APP_NAME = ups-config-operator
 DOCKER_LATEST_TAG = docker.io/aerogear/$(APP_NAME):latest
 RELEASE_TAG ?= $(CIRCLE_TAG)
 DOCKER_RELEASE_TAG = aerogear/$(APP_NAME):$(RELEASE_TAG)
