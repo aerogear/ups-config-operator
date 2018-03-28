@@ -7,9 +7,8 @@ import (
 
 	"encoding/json"
 
-	"fmt"
+	"log"
 
-	"github.com/prometheus/common/log"
 	"github.com/satori/go.uuid"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes"
@@ -47,9 +46,9 @@ type BindingSecret struct {
 func deleteSecret(name string) {
 	err := k8client.CoreV1().Secrets(os.Getenv(NamespaceKey)).Delete(name, nil)
 	if err != nil {
-		log.Error("Error deleting bind secret", err)
+		log.Fatal("Error creating config map", err)
 	} else {
-		log.Info(fmt.Sprintf("Secret `%s` has been deleted", name))
+		log.Printf("Secret `%s` has been deleted", name)
 	}
 }
 
@@ -77,9 +76,9 @@ func createAndroidVariantConfigMap(variant *androidVariant) {
 
 	_, err := k8client.CoreV1().ConfigMaps(os.Getenv(NamespaceKey)).Create(&payload)
 	if err != nil {
-		log.Error("Error creating config map", err)
+		log.Fatal("Error creating config map", err)
 	} else {
-		log.Info(fmt.Sprintf("Config map `%s` for variant created", variantName))
+		log.Printf("Config map `%s` for variant created", variantName)
 	}
 }
 
@@ -101,15 +100,15 @@ func handleAndroidVariant(key string, name string, pn string) {
 			},
 		}
 
-		log.Info("Creating a new android variant", payload)
+		log.Print("Creating a new android variant", payload)
 		success, variant := pushClient.createAndroidVariant(payload)
 		if success {
 			createAndroidVariantConfigMap(variant)
 		} else {
-			log.Warn("No variant has been created in UPS, skipping config map")
+			log.Fatal("No variant has been created in UPS, skipping config map")
 		}
 	} else {
-		log.Info(fmt.Sprint("A variant for google key '%s' already exists", key))
+		log.Printf("A variant for google key '%s' already exists", key)
 	}
 }
 
@@ -122,7 +121,7 @@ func handleAddSecret(obj runtime.Object) {
 		appType := string(secret.Data[BindingAppType])
 
 		if appType == "Android" {
-			log.Info("A mobile binding secret of type `Android` was added")
+			log.Print("A mobile binding secret of type `Android` was added")
 			googleKey := string(secret.Data[BindingGoogleKey])
 			variantName := string(secret.Data[BindingVariantName])
 			projectNumber := string(secret.Data[BindingProjectNumber])
@@ -146,7 +145,7 @@ func watchLoop() {
 		case ActionAdded:
 			handleAddSecret(update.Object)
 		default:
-			log.Info("Unhandled action:", action)
+			log.Print("Unhandled action:", action)
 		}
 	}
 }
@@ -184,7 +183,7 @@ func main() {
 
 	k8client = kubeOrDie(config)
 
-	log.Info("Entering watch loop")
+	log.Print("Entering watch loop")
 
 	for {
 		watchLoop()

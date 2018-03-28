@@ -17,6 +17,5 @@ jobs:
       - checkout
       # specify any bash command here prefixed with `run: `
       - run: go get github.com/Masterminds/glide
-      - run: go get github.com/prometheus/common/log
       - run: glide install --strip-vendor
       - run: make build_linux
