@@ -17,7 +17,7 @@ limitations under the License.
 package internalversion
 
 import (
-	"github.com/aerogear/ups-sidecar/pkg/client/mobile/clientset/internalversion/scheme"
+	"github.com/aerogear/ups-config-operator/pkg/client/mobile/clientset/internalversion/scheme"
 	rest "k8s.io/client-go/rest"
 )
 
