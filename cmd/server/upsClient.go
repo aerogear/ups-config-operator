@@ -5,9 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"net/http"
-
-	"github.com/prometheus/common/log"
 )
 
 type upsClient struct {
@@ -19,11 +18,11 @@ const BaseUrl = "http://localhost:8080/rest/applications"
 // Find an Android Variant by it's Google Key
 func (client *upsClient) hasAndroidVariant(key string) bool {
 	url := fmt.Sprintf("%s/%s/android", BaseUrl, client.config.ApplicationId)
-	log.Info("UPS request", url)
+	log.Printf("UPS request", url)
 
 	resp, err := http.Get(url)
 	if err != nil {
-		log.Error(err)
+		log.Fatal(err)
 
 		// Return true here to prevent creating a new variant when the
 		// request fails
@@ -46,7 +45,7 @@ func (client *upsClient) hasAndroidVariant(key string) bool {
 
 func (client *upsClient) createAndroidVariant(variant *androidVariant) (bool, *androidVariant) {
 	url := fmt.Sprintf("%s/%s/android", BaseUrl, client.config.ApplicationId)
-	log.Info("UPS request", url)
+	log.Printf("UPS request", url)
 
 	payload, err := json.Marshal(variant)
 	if err != nil {
@@ -63,7 +62,7 @@ func (client *upsClient) createAndroidVariant(variant *androidVariant) (bool, *a
 		panic(err.Error())
 	}
 
-	log.Info("UPS responded with status code ", resp.Status)
+	log.Printf("UPS responded with status code ", resp.Status)
 
 	defer resp.Body.Close()
 	body, _ := ioutil.ReadAll(resp.Body)

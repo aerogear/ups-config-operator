@@ -7,6 +7,10 @@ DOCKER_RELEASE_TAG = aerogear/$(APP_NAME):$(RELEASE_TAG)
 generate:
 	./scripts/generate.sh
 
+.PHONY: setup
+setup:
+	glide install --strip-vendor
+
 .PHONY: build_linux
 build_linux:
 	env GOOS=linux GOARCH=amd64 go build cmd/server/main.go cmd/server/types.go cmd/server/upsClient.go
