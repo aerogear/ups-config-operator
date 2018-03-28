@@ -17,7 +17,7 @@ limitations under the License.
 package scheme
 
 import (
-	mobile "github.com/aerogear/ups-sidecar/pkg/apis/mobile/install"
+	mobile "github.com/aerogear/ups-config-operator/pkg/apis/mobile/install"
 	announced "k8s.io/apimachinery/pkg/apimachinery/announced"
 	registered "k8s.io/apimachinery/pkg/apimachinery/registered"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"

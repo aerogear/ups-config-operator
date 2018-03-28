@@ -1,7 +1,7 @@
 # Sidecar service to sync UPS Variants with Mobile Clients
 
-[![Go Report Card](https://goreportcard.com/badge/github.com/aerogear/ups-sidecar)](https://goreportcard.com/report/github.com/aerogear/ups-sidecar)
-[![CircleCI](https://circleci.com/gh/aerogear/ups-sidecar.svg?style=svg)](https://circleci.com/gh/aerogear/ups-sidecar)
+[![Go Report Card](https://goreportcard.com/badge/github.com/aerogear/ups-config-operator)](https://goreportcard.com/report/github.com/aerogear/ups-config-operator)
+[![CircleCI](https://circleci.com/gh/aerogear/ups-config-operator.svg?style=svg)](https://circleci.com/gh/aerogear/ups-config-operator)
 
 *Note* Just a POC at the moment
 
@@ -19,6 +19,6 @@ Make sure that you are logged in with `oc` and use the right namespace.
 
 ```
 $ make build_linux
-$ docker build -t docker.io/aerogear/ups-sidecar:latest -f Dockerfile .
+$ docker build -t docker.io/aerogear/ups-config-operator:latest -f Dockerfile .
 $ oc create -f template.json
 ```
