@@ -1,79 +1,163 @@
 package main
 
 import (
-	"encoding/json"
-	"fmt"
 	"os"
 
-	"k8s.io/client-go/kubernetes"
-
-	aerogear "k8s.io/client-go/pkg/api/v1"
-
-	"github.com/aerogear/ups-sidecar/pkg/apis/mobile/v1alpha1"
-	mclient "github.com/aerogear/ups-sidecar/pkg/client/mobile/clientset/versioned"
-
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"encoding/json"
+
+	"fmt"
+
+	"github.com/prometheus/common/log"
+	"github.com/satori/go.uuid"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/kubernetes"
+	mobile "k8s.io/client-go/pkg/api/v1"
 	"k8s.io/client-go/rest"
 
-	uuid "github.com/satori/go.uuid"
-	)
+	v1 "k8s.io/client-go/pkg/api/v1"
+)
 
-func convertSecretToUpsSecret(s *aerogear.Secret) *pushApplication {
+var k8client *kubernetes.Clientset
+var pushClient *upsClient
+
+const NamespaceKey = "NAMESPACE"
+const ActionAdded = "ADDED"
+const SecretTypeKey = "secretType"
+const BindingSecretType = "mobile-client-binding-secret"
+const BindingAppType = "appType"
+
+const BindingGoogleKey = "googleKey"
+const BindingVariantName = "variantName"
+const BindingProjectNumber = "projectNumber"
+
+const UpsSecretName = "unified-push-server"
+
+// This is required because importing core/v1/Secret leads to a double import and redefinition
+// of log_dir
+type BindingSecret struct {
+	metav1.TypeMeta   `json:",inline"`
+	metav1.ObjectMeta `json:"metadata,omitempty" protobuf:"bytes,1,opt,name=metadata"`
+	Data              map[string][]byte `json:"data,omitempty" protobuf:"bytes,2,rep,name=data"`
+	StringData        map[string]string `json:"stringData,omitempty" protobuf:"bytes,4,rep,name=stringData"`
+}
+
+// Deletes the binding secret after the sync operation has completed
+func deleteSecret(name string) {
+	err := k8client.CoreV1().Secrets(os.Getenv(NamespaceKey)).Delete(name, nil)
+	if err != nil {
+		log.Error("Error deleting bind secret", err)
+	} else {
+		log.Info(fmt.Sprintf("Secret `%s` has been deleted", name))
+	}
+}
+
+func createAndroidVariantConfigMap(variant *androidVariant) {
+	variantName := variant.Name + "-config-map"
+
+	payload := v1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: variantName,
+			Labels: map[string]string{
+				"mobile":      "enabled",
+				"serviceName": "ups",
+			},
+		},
+		Data: map[string]string{
+			"name":          variant.Name,
+			"description":   variant.Description,
+			"variantID":     variant.VariantID,
+			"secret":        variant.Secret,
+			"googleKey":     variant.GoogleKey,
+			"projectNumber": variant.ProjectNumber,
+			"type":          "android",
+		},
+	}
+
+	_, err := k8client.CoreV1().ConfigMaps(os.Getenv(NamespaceKey)).Create(&payload)
+	if err != nil {
+		log.Error("Error creating config map", err)
+	} else {
+		log.Info(fmt.Sprintf("Config map `%s` for variant created", variantName))
+	}
+}
+
+func handleAndroidVariant(key string, name string, pn string) {
+	// Only instantiate the push client here because we need to wait for the ups secret to
+	// be available
+	if pushClient == nil {
+		pushClient = pushClientOrDie()
+	}
+
+	if pushClient.hasAndroidVariant(key) == false {
+		payload := &androidVariant{
+			ProjectNumber: pn,
+			GoogleKey:     key,
+			variant: variant{
+				Name:      name,
+				VariantID: uuid.NewV4().String(),
+				Secret:    uuid.NewV4().String(),
+			},
+		}
+
+		log.Info("Creating a new android variant", payload)
+		success, variant := pushClient.createAndroidVariant(payload)
+		if success {
+			createAndroidVariantConfigMap(variant)
+		} else {
+			log.Warn("No variant has been created in UPS, skipping config map")
+		}
+	} else {
+		log.Info(fmt.Sprint("A variant for google key '%s' already exists", key))
+	}
+}
+
+func handleAddSecret(obj runtime.Object) {
+	raw, _ := json.Marshal(obj)
+	var secret = BindingSecret{}
+	json.Unmarshal(raw, &secret)
+
+	if val, ok := secret.Labels[SecretTypeKey]; ok && val == BindingSecretType {
+		appType := string(secret.Data[BindingAppType])
+
+		if appType == "Android" {
+			log.Info("A mobile binding secret of type `Android` was added")
+			googleKey := string(secret.Data[BindingGoogleKey])
+			variantName := string(secret.Data[BindingVariantName])
+			projectNumber := string(secret.Data[BindingProjectNumber])
+			handleAndroidVariant(googleKey, variantName, projectNumber)
+		}
+
+		// Always delete the secret after handling it regardless of any new resources
+		// was created
+		deleteSecret(secret.Name)
+	}
+}
+
+func watchLoop() {
+	events, err := k8client.CoreV1().Secrets(os.Getenv(NamespaceKey)).Watch(metav1.ListOptions{})
+	if err != nil {
+		panic(err.Error())
+	}
+
+	for update := range events.ResultChan() {
+		switch action := update.Type; action {
+		case ActionAdded:
+			handleAddSecret(update.Object)
+		default:
+			log.Info("Unhandled action:", action)
+		}
+	}
+}
+
+func convertSecretToUpsSecret(s *mobile.Secret) *pushApplication {
 	return &pushApplication{
 		ApplicationId: string(s.Data["applicationId"]),
 	}
 }
 
-func addAndroidVariant(labels map[string]string, client *upsClient, name string) {
-	if val, ok := labels["googleKey"]; ok {
-		payload := &androidVariant{
-			ProjectNumber: labels["projectNumber"],
-			GoogleKey:     val,
-			variant: variant{
-				Name:       name,
-				VariantID:  uuid.NewV4().String(),
-				Secret:     uuid.NewV4().String(),
-			},
-		}
-
-		jsonString, _ := json.Marshal(payload)
-
-		if !client.doesVariantWithNameExist(name) {
-			client.createVariant(jsonString)
-		}
-	}
-}
-
-func waitForEvent(namespace string, config *rest.Config) {
-	// Create Clientset
-	clientset, err := mclient.NewForConfig(config)
-	if err != nil {
-		panic(err.Error())
-	}
-
-	// Create watch channel
-	wi, err := clientset.MobileV1alpha1().MobileClients(namespace).Watch(metav1.ListOptions{})
-	if err != nil {
-		panic(err)
-	}
-
-	// Query the results from the watch channel
-	for update := range wi.ResultChan() {
-		updatedClient := update.Object.(*v1alpha1.MobileClient)
-		labels := updatedClient.Labels
-
-		if len(labels) > 0 {
-			k8client := getKubeClient(config)
-			upsSecret, _ := k8client.CoreV1().Secrets(namespace).Get("unified-push-server", metav1.GetOptions{})
-			data := convertSecretToUpsSecret(upsSecret)
-			client := upsClient{config: data}
-
-			addAndroidVariant(labels, &client, updatedClient.Name)
-		}
-	}
-}
-
-func getKubeClient(config *rest.Config) *kubernetes.Clientset {
+func kubeOrDie(config *rest.Config) *kubernetes.Clientset {
 	k8client, err := kubernetes.NewForConfig(config)
 	if err != nil {
 		panic(err.Error())
@@ -81,20 +165,28 @@ func getKubeClient(config *rest.Config) *kubernetes.Clientset {
 	return k8client
 }
 
-func main() {
-	namespace := os.Getenv("NAMESPACE")
+func pushClientOrDie() *upsClient {
+	upsSecret, err := k8client.CoreV1().Secrets(os.Getenv(NamespaceKey)).Get(UpsSecretName, metav1.GetOptions{})
+	if err != nil {
+		panic(err.Error())
+	}
 
-	// creates the in-cluster config
+	return &upsClient{
+		config: convertSecretToUpsSecret(upsSecret),
+	}
+}
+
+func main() {
 	config, err := rest.InClusterConfig()
 	if err != nil {
 		panic(err.Error())
 	}
 
-	fmt.Println("Waiting for mobile client events on namespace ", namespace)
+	k8client = kubeOrDie(config)
 
-	// The channel can get closed at any time, that's why we re-establish it
-	// inside the infinite loop
+	log.Info("Entering watch loop")
+
 	for {
-		waitForEvent(namespace, config)
+		watchLoop()
 	}
 }

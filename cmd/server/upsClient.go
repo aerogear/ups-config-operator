@@ -6,58 +6,69 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+
+	"github.com/prometheus/common/log"
 )
 
 type upsClient struct {
 	config *pushApplication
 }
 
-func (client *upsClient) doesVariantWithNameExist(name string) bool {
-	fmt.Println("Checking if a variant already exists with name", name)
-	var url = "http://localhost:8080/rest/applications/" + client.config.ApplicationId + "/android"
+const BaseUrl = "http://localhost:8080/rest/applications"
+
+// Find an Android Variant by it's Google Key
+func (client *upsClient) hasAndroidVariant(key string) bool {
+	url := fmt.Sprintf("%s/%s/android", BaseUrl, client.config.ApplicationId)
+	log.Info("UPS request", url)
 
 	resp, err := http.Get(url)
 	if err != nil {
-		fmt.Println(err.Error())
+		log.Error(err)
+
+		// Return true here to prevent creating a new variant when the
+		// request fails
 		return true
-	} else {
-		defer resp.Body.Close()
-		body, _ := ioutil.ReadAll(resp.Body)
-
-		variants := make([]androidVariant, 0)
-		json.Unmarshal(body, &variants)
-
-		for _, variant := range variants {
-			fmt.Println("Found a variant with name", name)
-			if variant.Name == name {
-				return true
-			}
-		}
-
-		fmt.Println("No variant exists with name", name)
-
-		return false
 	}
+
+	defer resp.Body.Close()
+	body, _ := ioutil.ReadAll(resp.Body)
+	variants := make([]androidVariant, 0)
+	json.Unmarshal(body, &variants)
+
+	for _, variant := range variants {
+		if variant.GoogleKey == key {
+			return true
+		}
+	}
+
+	return false
 }
 
-func (client *upsClient) createVariant(json []byte) {
-	fmt.Println("Creating a new variant in UPS")
-	var url = "http://localhost:8080/rest/applications/" + client.config.ApplicationId + "/android"
+func (client *upsClient) createAndroidVariant(variant *androidVariant) (bool, *androidVariant) {
+	url := fmt.Sprintf("%s/%s/android", BaseUrl, client.config.ApplicationId)
+	log.Info("UPS request", url)
 
-	fmt.Println("Sending", string(json), "to", url)
+	payload, err := json.Marshal(variant)
+	if err != nil {
+		panic(err.Error())
+	}
 
-	req, err := http.NewRequest("POST", url, bytes.NewBuffer(json))
+	req, err := http.NewRequest("POST", url, bytes.NewBuffer(payload))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "application/json")
 	httpClient := http.Client{}
 	resp, err := httpClient.Do(req)
 
 	if err != nil {
-		fmt.Println("UPS request error", err.Error())
-	} else {
-		defer resp.Body.Close()
-		if resp.StatusCode >= 400 {
-			fmt.Println(resp)
-		}
+		panic(err.Error())
 	}
+
+	log.Info("UPS responded with status code ", resp.Status)
+
+	defer resp.Body.Close()
+	body, _ := ioutil.ReadAll(resp.Body)
+	var createdVariant androidVariant
+	json.Unmarshal(body, &createdVariant)
+
+	return resp.StatusCode == 201, &createdVariant
 }
