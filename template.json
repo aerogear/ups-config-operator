@@ -2,20 +2,20 @@
   "kind": "DeploymentConfig",
   "apiVersion": "v1",
   "metadata": {
-    "name": "ups-sidecar"
+    "name": "ups-config-operator"
   },
   "spec": {
     "template": { 
       "metadata": {
         "labels": {
-          "name": "ups-sidecar"
+          "name": "ups-config-operator"
         }
       },
       "spec": {
         "containers": [
           {
-            "name": "ups-sidecar",
-            "image": "aerogear/ups-sidecar"
+            "name": "ups-config-operator",
+            "image": "aerogear/ups-config-operator"
           }
         ]
       }

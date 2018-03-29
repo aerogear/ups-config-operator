@@ -1,4 +1,4 @@
-package: github.com/aerogear/ups-sidecar
+package: github.com/aerogear/ups-config-operator
 import:
 - package: github.com/golang/glog
 - package: github.com/pkg/errors

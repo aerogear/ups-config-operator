@@ -17,9 +17,9 @@ limitations under the License.
 package fake
 
 import (
-	clientset "github.com/aerogear/ups-sidecar/pkg/client/mobile/clientset/versioned"
-	mobilev1alpha1 "github.com/aerogear/ups-sidecar/pkg/client/mobile/clientset/versioned/typed/mobile/v1alpha1"
-	fakemobilev1alpha1 "github.com/aerogear/ups-sidecar/pkg/client/mobile/clientset/versioned/typed/mobile/v1alpha1/fake"
+	clientset "github.com/aerogear/ups-config-operator/pkg/client/mobile/clientset/versioned"
+	mobilev1alpha1 "github.com/aerogear/ups-config-operator/pkg/client/mobile/clientset/versioned/typed/mobile/v1alpha1"
+	fakemobilev1alpha1 "github.com/aerogear/ups-config-operator/pkg/client/mobile/clientset/versioned/typed/mobile/v1alpha1/fake"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/discovery"

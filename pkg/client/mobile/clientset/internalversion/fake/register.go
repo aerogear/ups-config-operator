@@ -17,7 +17,7 @@ limitations under the License.
 package fake
 
 import (
-	mobileinternalversion "github.com/aerogear/ups-sidecar/pkg/apis/mobile"
+	mobileinternalversion "github.com/aerogear/ups-config-operator/pkg/apis/mobile"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	schema "k8s.io/apimachinery/pkg/runtime/schema"

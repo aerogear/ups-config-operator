@@ -17,8 +17,8 @@ limitations under the License.
 package internalversion
 
 import (
-	mobile "github.com/aerogear/ups-sidecar/pkg/apis/mobile"
-	scheme "github.com/aerogear/ups-sidecar/pkg/client/mobile/clientset/internalversion/scheme"
+	mobile "github.com/aerogear/ups-config-operator/pkg/apis/mobile"
+	scheme "github.com/aerogear/ups-config-operator/pkg/client/mobile/clientset/internalversion/scheme"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
