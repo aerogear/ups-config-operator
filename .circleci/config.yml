@@ -16,8 +16,10 @@ jobs:
     steps:
       - checkout
       # specify any bash command here prefixed with `run: `
-      - run: go get github.com/Masterminds/glide
-      - run: glide install --strip-vendor
+      - run:
+          name: Install Glide
+          command: curl https://glide.sh/get | sh
+      - run: make setup
       - run: make build_linux
 
   docker_push_master:
