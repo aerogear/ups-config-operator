@@ -28,6 +28,9 @@ jobs:
       - image: circleci/golang:1.9
     steps:
       - checkout
+      - run:
+          name: Install Glide
+          command: curl https://glide.sh/get | sh
       - run: make setup
       - setup_remote_docker
       - run: make build_linux
@@ -40,6 +43,9 @@ jobs:
       - image: circleci/golang:1.9
     steps:
       - checkout
+      - run:
+          name: Install Glide
+          command: curl https://glide.sh/get | sh
       - run: make setup
       - setup_remote_docker
       - run: make docker_build_release
