@@ -21,7 +21,7 @@ docker_build: build_linux
 	docker build -t $(DOCKER_LATEST_TAG) -f Dockerfile .
 
 .PHONY: docker_build_release
-docker_build_release:
+docker_build_release: build_linux
 	docker build -t $(DOCKER_LATEST_TAG) -t $(DOCKER_RELEASE_TAG) -f Dockerfile .
 
 .PHONY: docker_build_master

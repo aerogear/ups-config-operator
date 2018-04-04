@@ -34,8 +34,8 @@ jobs:
       - run: make setup
       - setup_remote_docker
       - run: make build_linux
-      - run: make docker_build
-      - run: make docker_push_latest
+      - run: make docker_build_master
+      - run: make docker_push_master
 
   docker_release:
     working_directory: /go/src/github.com/aerogear/ups-config-operator
