@@ -37,7 +37,7 @@ jobs:
       - run: make docker_build
       - run: make docker_push_latest
 
-  docker_push_master:
+  docker_release:
     working_directory: /go/src/github.com/aerogear/ups-config-operator
     docker:
       - image: circleci/golang:1.9
