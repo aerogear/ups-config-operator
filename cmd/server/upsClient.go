@@ -11,6 +11,7 @@ import (
 
 type upsClient struct {
 	config *pushApplication
+	baseUrl string
 }
 
 const BaseUrl = "http://localhost:8080/rest/applications"
