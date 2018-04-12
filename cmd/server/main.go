@@ -33,16 +33,18 @@ const BindingGoogleKey = "googleKey"
 const BindingProjectNumber = "projectNumber"
 
 const UpsSecretName = "unified-push-server"
+const UpsURI = "uri"
 const GoogleKey = "googleKey"
 
 // This is required because importing core/v1/Secret leads to a double import and redefinition
 // of log_dir
 type BindingSecret struct {
-	metav1.TypeMeta              `json:",inline"`
-	metav1.ObjectMeta            `json:"metadata,omitempty" protobuf:"bytes,1,opt,name=metadata"`
-	Data       map[string][]byte `json:"data,omitempty" protobuf:"bytes,2,rep,name=data"`
-	StringData map[string]string `json:"stringData,omitempty" protobuf:"bytes,4,rep,name=stringData"`
+	metav1.TypeMeta   `json:",inline"`
+	metav1.ObjectMeta `json:"metadata,omitempty" protobuf:"bytes,1,opt,name=metadata"`
+	Data              map[string][]byte `json:"data,omitempty" protobuf:"bytes,2,rep,name=data"`
+	StringData        map[string]string `json:"stringData,omitempty" protobuf:"bytes,4,rep,name=stringData"`
 }
+
 
 // Deletes the binding secret after the sync operation has completed
 func deleteSecret(name string) {
@@ -55,6 +57,11 @@ func deleteSecret(name string) {
 }
 
 func createAndroidVariantConfigMap(variant *androidVariant) {
+	//initialise the UPS data which will be used for the configmap value
+	var variantUrl = pushClient.baseUrl + "/#/app/" + pushClient.config.ApplicationId + "/variants/" + variant.VariantID
+
+	log.Print("ups variant url : ", variantUrl)
+
 	variantName := variant.Name + "-config-map"
 
 	payload := v1.ConfigMap{
@@ -74,9 +81,9 @@ func createAndroidVariantConfigMap(variant *androidVariant) {
 			"googleKey":     variant.GoogleKey,
 			"projectNumber": variant.ProjectNumber,
 			"type":          "android",
+			"variantURL":    variantUrl,
 		},
 	}
-
 	_, err := k8client.CoreV1().ConfigMaps(os.Getenv(NamespaceKey)).Create(&payload)
 	if err != nil {
 		log.Fatal("Error creating config map", err)
@@ -142,7 +149,7 @@ func handleDeleteAndroidVariant(secret *BindingSecret) {
 			err := k8client.CoreV1().ConfigMaps(os.Getenv(NamespaceKey)).Delete(name, nil)
 			if err != nil {
 				log.Fatal("Error deleting config map with name `%s`", name, err)
-				break;
+				break
 			}
 
 			log.Printf("Config map `%s` has been deleted", name)
@@ -191,7 +198,7 @@ func handleDeleteSecret(obj runtime.Object) {
 	for _, ref := range secret.ObjectMeta.OwnerReferences {
 		if ref.Kind == "ServiceBinding" {
 			handleDeleteAndroidVariant(&secret)
-			break;
+			break
 		}
 	}
 }
@@ -234,8 +241,11 @@ func pushClientOrDie() *upsClient {
 		panic(err.Error())
 	}
 
+	var upsBaseURL = string(upsSecret.Data[UpsURI])
+
 	return &upsClient{
 		config: convertSecretToUpsSecret(upsSecret),
+		baseUrl: upsBaseURL,
 	}
 }
 
