@@ -11,6 +11,7 @@ import (
 
 type upsClient struct {
 	config *pushApplication
+	serviceInstanceId string
 	baseUrl string
 }
 
