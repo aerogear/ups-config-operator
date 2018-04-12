@@ -16,6 +16,8 @@ import (
 	"k8s.io/client-go/rest"
 
 	"k8s.io/client-go/pkg/api/v1"
+	"math/rand"
+	"time"
 )
 
 var k8client *kubernetes.Clientset
@@ -25,9 +27,10 @@ const NamespaceKey = "NAMESPACE"
 const ActionAdded = "ADDED"
 const ActionDeleted = "DELETED"
 const SecretTypeKey = "secretType"
+const ServiceInstanceIdKey = "serviceInstanceID"
+
 const BindingSecretType = "mobile-client-binding-secret"
 const BindingAppType = "appType"
-
 const BindingClientId = "clientId"
 const BindingGoogleKey = "googleKey"
 const BindingProjectNumber = "projectNumber"
@@ -35,6 +38,8 @@ const BindingProjectNumber = "projectNumber"
 const UpsSecretName = "unified-push-server"
 const UpsURI = "uri"
 const GoogleKey = "googleKey"
+
+var letters = []rune("abcdefghijklmnopqrstuvwxyz0123456789")
 
 // This is required because importing core/v1/Secret leads to a double import and redefinition
 // of log_dir
@@ -45,6 +50,14 @@ type BindingSecret struct {
 	StringData        map[string]string `json:"stringData,omitempty" protobuf:"bytes,4,rep,name=stringData"`
 }
 
+func getRandomIdentifier(length int) string {
+	result := make([]rune, length)
+	for i := 0; i < length; i++ {
+		result[i] = letters[rand.Intn(len(letters))]
+	}
+
+	return string(result)
+}
 
 // Deletes the binding secret after the sync operation has completed
 func deleteSecret(name string) {
@@ -56,13 +69,15 @@ func deleteSecret(name string) {
 	}
 }
 
-func createAndroidVariantConfigMap(variant *androidVariant) {
+func createAndroidVariantConfigMap(variant *androidVariant, clientId string) {
 	//initialise the UPS data which will be used for the configmap value
 	var variantUrl = pushClient.baseUrl + "/#/app/" + pushClient.config.ApplicationId + "/variants/" + variant.VariantID
 
 	log.Print("ups variant url : ", variantUrl)
 
-	variantName := variant.Name + "-config-map"
+	// The name of the config map needs to have a random element because there could be
+	// more than one config map per client
+	variantName := variant.Name + "-config-map-" + getRandomIdentifier(5)
 
 	payload := v1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
@@ -71,6 +86,10 @@ func createAndroidVariantConfigMap(variant *androidVariant) {
 				"mobile":       "enabled",
 				"serviceName":  "ups",
 				"resourceType": "binding",
+
+				// Used by the mobile-cli to discover config objects
+				"serviceInstanceId": pushClient.serviceInstanceId,
+				"mobileClientID": clientId,
 			},
 		},
 		Data: map[string]string{
@@ -92,7 +111,7 @@ func createAndroidVariantConfigMap(variant *androidVariant) {
 	}
 }
 
-func handleAndroidVariant(key string, name string, pn string) {
+func handleAndroidVariant(key string, clientId string, pn string) {
 	// Only instantiate the push client here because we need to wait for the ups secret to
 	// be available
 	if pushClient == nil {
@@ -104,7 +123,7 @@ func handleAndroidVariant(key string, name string, pn string) {
 			ProjectNumber: pn,
 			GoogleKey:     key,
 			variant: variant{
-				Name:      name,
+				Name:      clientId,
 				VariantID: uuid.NewV4().String(),
 				Secret:    uuid.NewV4().String(),
 			},
@@ -113,7 +132,7 @@ func handleAndroidVariant(key string, name string, pn string) {
 		log.Print("Creating a new android variant", payload)
 		success, variant := pushClient.createAndroidVariant(payload)
 		if success {
-			createAndroidVariantConfigMap(variant)
+			createAndroidVariantConfigMap(variant, clientId)
 		} else {
 			log.Fatal("No variant has been created in UPS, skipping config map")
 		}
@@ -241,15 +260,19 @@ func pushClientOrDie() *upsClient {
 		panic(err.Error())
 	}
 
-	var upsBaseURL = string(upsSecret.Data[UpsURI])
+	upsBaseURL := string(upsSecret.Data[UpsURI])
+	serviceInstanceId := upsSecret.Labels[ServiceInstanceIdKey]
 
 	return &upsClient{
 		config: convertSecretToUpsSecret(upsSecret),
+		serviceInstanceId: serviceInstanceId,
 		baseUrl: upsBaseURL,
 	}
 }
 
 func main() {
+	rand.Seed(time.Now().Unix())
+
 	config, err := rest.InClusterConfig()
 	if err != nil {
 		panic(err.Error())
