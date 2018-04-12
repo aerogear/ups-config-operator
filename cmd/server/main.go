@@ -201,6 +201,12 @@ func handleAddSecret(obj runtime.Object) {
 			googleKey := string(secret.Data[BindingGoogleKey])
 			projectNumber := string(secret.Data[BindingProjectNumber])
 			handleAndroidVariant(googleKey, clientId, projectNumber)
+		} else if appType == "IOS" {
+			log.Print("A mobile binding secret of type `IOS` was added")
+			clientId := string(secret.Data[BindingClientId])
+			log.Print("DATA: ", secret.Data)
+			log.Print("%%%", "clientid: ", clientId)
+			//handleAndroidVariant(googleKey, clientId, projectNumber)
 		}
 
 		// Always delete the secret after handling it regardless of any new resources
