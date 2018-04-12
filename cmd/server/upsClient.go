@@ -7,6 +7,8 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"mime/multipart"
+	"encoding/base64"
 )
 
 type upsClient struct {
@@ -97,5 +99,63 @@ func (client *upsClient) createAndroidVariant(variant *androidVariant) (bool, *a
 	var createdVariant androidVariant
 	json.Unmarshal(body, &createdVariant)
 
+	return resp.StatusCode == 201, &createdVariant
+}
+
+func (client *upsClient) createIOSVariant(variant *iOSVariant) (bool, *iOSVariant) {
+	url := fmt.Sprintf("%s/%s/ios", BaseUrl, client.config.ApplicationId)
+
+	params :=  map[string]string{
+		"name": variant.Name,
+		"passphrase": variant.PassPhrase,
+		"production" : "false",
+		"description": variant.Description,
+	}
+
+
+	// We need to decode it before sending
+	decodedString, _ := base64.StdEncoding.DecodeString(string(variant.Certificate))
+
+	log.Print("decoded string : ", decodedString)
+
+	body := new(bytes.Buffer)
+	writer := multipart.NewWriter(body)
+
+	part, err := writer.CreateFormFile("certificate", "certificate")
+	if err != nil {
+		panic(err.Error())
+	}
+
+	part.Write(decodedString)
+
+	for key, val := range params {
+		_ = writer.WriteField(key, val)
+	}
+
+	err = writer.Close()
+	if err != nil {
+		panic(err.Error())
+	}
+
+	req, err := http.NewRequest(http.MethodPost, url, body)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+
+	log.Printf("UPS REQUEST: " , req)
+
+	req.Header.Set("Accept", "application/json")
+
+	httpClient := http.Client{}
+	resp, err := httpClient.Do(req)
+
+	if err != nil {
+		panic(err.Error())
+	}
+
+	log.Printf("UPS responded with status code: %s ", resp)
+
+	defer resp.Body.Close()
+	b, _ := ioutil.ReadAll(resp.Body)
+	var createdVariant iOSVariant
+	json.Unmarshal(b, &createdVariant)
 	return resp.StatusCode == 201, &createdVariant
 }

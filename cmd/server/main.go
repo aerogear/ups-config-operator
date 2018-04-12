@@ -8,7 +8,6 @@ import (
 	"encoding/json"
 
 	"log"
-
 	"github.com/satori/go.uuid"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes"
@@ -38,6 +37,8 @@ const BindingProjectNumber = "projectNumber"
 const UpsSecretName = "unified-push-server"
 const UpsURI = "uri"
 const GoogleKey = "googleKey"
+const IOSCert = "cert"
+const IOSPassPhrase = "passphrase"
 
 var letters = []rune("abcdefghijklmnopqrstuvwxyz0123456789")
 
@@ -111,6 +112,49 @@ func createAndroidVariantConfigMap(variant *androidVariant, clientId string) {
 	}
 }
 
+func createIOSVariantConfigMap(variant *iOSVariant, clientId string) {
+	//initialise the UPS data which will be used for the configmap value
+	var variantUrl = pushClient.baseUrl + "/#/app/" + pushClient.config.ApplicationId + "/variants/" + variant.VariantID
+
+	log.Print("ups variant url : ", variantUrl)
+
+	// The name of the config map needs to have a random element because there could be
+	// more than one config map per client
+	variantName := variant.Name + "-config-map-" + getRandomIdentifier(5)
+
+	payload := v1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: variantName,
+			Labels: map[string]string{
+				"mobile":       "enabled",
+				"serviceName":  "ups",
+				"resourceType": "binding",
+
+				// Used by the mobile-cli to discover config objects
+				"serviceInstanceId": pushClient.serviceInstanceId,
+				"mobileClientID": clientId,
+			},
+		},
+		Data: map[string]string{
+			"name":          variant.Name,
+			"description":   variant.Description,
+			"variantID":     variant.VariantID,
+			"secret":        variant.Secret,
+		//	"certificate":     variant.Certificate,
+		//  "production": "",
+			"passPhrase": variant.PassPhrase,
+			"type":          "ios",
+			"variantURL":    variantUrl,
+		},
+	}
+	_, err := k8client.CoreV1().ConfigMaps(os.Getenv(NamespaceKey)).Create(&payload)
+	if err != nil {
+		log.Fatal("Error creating config map", err)
+	} else {
+		log.Printf("Config map `%s` for variant created", variantName)
+	}
+}
+
 func handleAndroidVariant(key string, clientId string, pn string) {
 	// Only instantiate the push client here because we need to wait for the ups secret to
 	// be available
@@ -138,6 +182,33 @@ func handleAndroidVariant(key string, clientId string, pn string) {
 		}
 	} else {
 		log.Printf("A variant for google key '%s' already exists", key)
+	}
+}
+
+func handleIOSVariant(clientId string, cert string, passPhrase string) {
+	// Only instantiate the push client here because we need to wait for the ups secret to
+	// be available
+	if pushClient == nil {
+		pushClient = pushClientOrDie()
+	}
+	certByteArray := []byte (cert)
+	payload := &iOSVariant{
+		Certificate: certByteArray,
+		PassPhrase:     passPhrase,
+		Production: false, //false for now while testing functionality
+		variant: variant{
+			Name:      clientId,
+			VariantID: uuid.NewV4().String(),
+			Secret:    uuid.NewV4().String(),
+		},
+	}
+
+	log.Print("handleIOSVariant Creating a new iOS variant:  ", payload)
+	success, variant := pushClient.createIOSVariant(payload)
+	if success {
+		createIOSVariantConfigMap(variant, clientId)
+	} else {
+		log.Print("No variant has been created in UPS, skipping config map")
 	}
 }
 
@@ -201,6 +272,12 @@ func handleAddSecret(obj runtime.Object) {
 			googleKey := string(secret.Data[BindingGoogleKey])
 			projectNumber := string(secret.Data[BindingProjectNumber])
 			handleAndroidVariant(googleKey, clientId, projectNumber)
+		} else if appType == "IOS" {
+			log.Print("A mobile binding secret of type `IOS` was added")
+			clientId := string(secret.Data[BindingClientId])
+			cert := string(secret.Data[IOSCert])
+			passPhrase := string(secret.Data[IOSPassPhrase])
+			handleIOSVariant(clientId, cert, passPhrase)
 		}
 
 		// Always delete the secret after handling it regardless of any new resources
