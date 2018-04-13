@@ -194,6 +194,7 @@ func handleIOSVariant(clientId string, cert string, passPhrase string) {
 	payload := &iOSVariant{
 		Certificate: certByteArray,
 		PassPhrase:     passPhrase,
+		Production: false, //false for now while testing functionality
 		variant: variant{
 			Name:      clientId,
 			VariantID: uuid.NewV4().String(),

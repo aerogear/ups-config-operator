@@ -110,7 +110,6 @@ func (client *upsClient) createIOSVariant(variant *iOSVariant) (bool, *iOSVarian
 
 	log.Print("CERT", variant.Certificate)
 
-
 	payload, err := json.Marshal(variant)
 	if err != nil {
 		panic(err.Error())
