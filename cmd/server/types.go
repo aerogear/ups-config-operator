@@ -13,6 +13,12 @@ type androidVariant struct {
 	variant
 }
 
+type iOSVariant struct {
+	Cert []byte `json:"cert"`
+	PassPhrase string `json:"pass_phrase"`
+	variant
+}
+
 type pushApplication struct {
 	ApplicationId string `json:"applicationId"`
 }

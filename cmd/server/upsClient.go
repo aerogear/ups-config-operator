@@ -99,3 +99,41 @@ func (client *upsClient) createAndroidVariant(variant *androidVariant) (bool, *a
 
 	return resp.StatusCode == 201, &createdVariant
 }
+
+
+func (client *upsClient) createIOSVariant(variant *iOSVariant) (bool, *iOSVariant) {
+	url := fmt.Sprintf("%s/%s/ios", BaseUrl, client.config.ApplicationId)
+
+	log.Printf("UPS request:  %s", url)
+	//variant is not in byte array any more here so will need to look at that, maybe convert it here
+	log.Printf("Variant payload: :  %s", variant)
+	payload, err := json.Marshal(variant)
+	if err != nil {
+		panic(err.Error())
+	}
+	log.Printf("createIOSVariant  payload %s", payload )
+
+	req, err := http.NewRequest(http.MethodPost, url, bytes.NewBuffer(payload))
+
+	req.Header.Set("Content-Type", "multipart/form-data")
+	req.Header.Set("Accept", "application/json")
+
+	log.Printf("createIOSVariant  req: %s", req )
+
+
+	httpClient := http.Client{}
+	resp, err := httpClient.Do(req)
+
+	if err != nil {
+		panic(err.Error())
+	}
+
+	log.Printf("UPS responded with status code: %s ", resp.Status)
+
+	defer resp.Body.Close()
+	body, _ := ioutil.ReadAll(resp.Body)
+	var createdVariant iOSVariant
+	json.Unmarshal(body, &createdVariant)
+
+	return resp.StatusCode == 201, &createdVariant
+}
