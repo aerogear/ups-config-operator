@@ -142,7 +142,7 @@ func createIOSVariantConfigMap(variant *iOSVariant, clientId string) {
 			"secret":        variant.Secret,
 		//	"cert":     variant.Cert,
 			"passPhrase": variant.PassPhrase,
-			"type":          "android",
+			"type":          "ios",
 			"variantURL":    variantUrl,
 		},
 	}
