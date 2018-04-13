@@ -192,7 +192,7 @@ func handleIOSVariant(clientId string, cert string, passPhrase string) {
 	}
 	certByteArray := []byte (cert)
 	payload := &iOSVariant{
-		Cert: certByteArray,
+		Certificate: certByteArray,
 		PassPhrase:     passPhrase,
 		variant: variant{
 			Name:      clientId,

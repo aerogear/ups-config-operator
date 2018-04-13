@@ -107,6 +107,10 @@ func (client *upsClient) createIOSVariant(variant *iOSVariant) (bool, *iOSVarian
 	log.Printf("UPS request:  %s", url)
 	//variant is not in byte array any more here so will need to look at that, maybe convert it here
 	log.Printf("Variant payload: :  %s", variant)
+
+	log.Print("CERT", variant.Certificate)
+
+
 	payload, err := json.Marshal(variant)
 	if err != nil {
 		panic(err.Error())
