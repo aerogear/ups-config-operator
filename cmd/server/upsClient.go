@@ -7,6 +7,8 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"mime/multipart"
+	"os"
 )
 
 type upsClient struct {
@@ -100,29 +102,64 @@ func (client *upsClient) createAndroidVariant(variant *androidVariant) (bool, *a
 	return resp.StatusCode == 201, &createdVariant
 }
 
-
 func (client *upsClient) createIOSVariant(variant *iOSVariant) (bool, *iOSVariant) {
 	url := fmt.Sprintf("%s/%s/ios", BaseUrl, client.config.ApplicationId)
 
-	log.Printf("UPS request:  %s", url)
-	//variant is not in byte array any more here so will need to look at that, maybe convert it here
-	log.Printf("Variant payload: :  %s", variant)
+//	log.Printf("UPS request:  %s", url)
 
-	log.Print("CERT", variant.Certificate)
-
-	payload, err := json.Marshal(variant)
-	if err != nil {
-		panic(err.Error())
+	params :=  map[string]string{
+		"name": variant.Name,
+		"passPhrase": variant.PassPhrase,
+		"production" : "false",
+		"description": variant.Description,
 	}
-	log.Printf("createIOSVariant  payload %s", payload )
 
-	req, err := http.NewRequest(http.MethodPost, url, bytes.NewBuffer(payload))
+	mode := int(0777)
+	perms:= os.FileMode(mode)
 
-	req.Header.Set("Content-Type", "multipart/form-data")
+	err := ioutil.WriteFile("/tmp/certFile", variant.Certificate, perms)
+
+	if err != nil {
+		panic(err)
+	}
+
+
+	file, err := os.Open("/tmp/certFile")
+	if err != nil {
+		log.Print("err:", err)
+	}
+
+	fileContents, err := ioutil.ReadAll(file)
+	if err != nil {
+		log.Print("err:", err)
+	}
+
+	fi, err := file.Stat()
+	if err != nil {
+		log.Print("err:", err)
+	}
+
+	defer file.Close()
+
+	payload := new(bytes.Buffer)
+	writer := multipart.NewWriter(payload)
+
+	part, err := writer.CreateFormFile("certificate", fi.Name())
+	part.Write(fileContents)
+
+	for key, val := range params {
+		_ = writer.WriteField(key, val)
+	}
+
+	writer.Close()
+
+	req, err := http.NewRequest(http.MethodPost, url, payload)
+	log.Print(req.MultipartForm.Value)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+
+	log.Printf("UPS REQUEST: " , req)
+
 	req.Header.Set("Accept", "application/json")
-
-	log.Printf("createIOSVariant  req: %s", req )
-
 
 	httpClient := http.Client{}
 	resp, err := httpClient.Do(req)
