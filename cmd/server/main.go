@@ -122,6 +122,11 @@ func createIOSVariantConfigMap(variant *iOSVariant, clientId string) {
 	// more than one config map per client
 	variantName := variant.Name + "-config-map-" + getRandomIdentifier(5)
 
+	production := "true"
+	if !variant.Production {
+		production = "false"
+	}
+
 	payload := v1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: variantName,
@@ -140,9 +145,9 @@ func createIOSVariantConfigMap(variant *iOSVariant, clientId string) {
 			"description":   variant.Description,
 			"variantID":     variant.VariantID,
 			"secret":        variant.Secret,
-		//	"certificate":     variant.Certificate,
-		//  "production": "",
-			"passPhrase": variant.PassPhrase,
+			"certificate":   string(variant.Certificate),
+		    "production":	production,
+			"passPhrase": 	variant.PassPhrase,
 			"type":          "ios",
 			"variantURL":    variantUrl,
 		},
