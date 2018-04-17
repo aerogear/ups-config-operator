@@ -265,7 +265,6 @@ func handleAddSecret(obj runtime.Object) {
 
 	if val, ok := secret.Labels[SecretTypeKey]; ok && val == BindingSecretType {
 		appType := string(secret.Data[BindingAppType])
-
 		if appType == "Android" {
 			log.Print("A mobile binding secret of type `Android` was added")
 			clientId := string(secret.Data[BindingClientId])
@@ -277,6 +276,9 @@ func handleAddSecret(obj runtime.Object) {
 			clientId := string(secret.Data[BindingClientId])
 			cert := string(secret.Data[IOSCert])
 			passPhrase := string(secret.Data[IOSPassPhrase])
+
+			log.Println("Creating ios variant with passphrase: ", passPhrase)
+
 			handleIOSVariant(clientId, cert, passPhrase)
 		}
 

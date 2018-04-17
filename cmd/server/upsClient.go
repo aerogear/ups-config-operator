@@ -8,7 +8,7 @@ import (
 	"log"
 	"net/http"
 	"mime/multipart"
-	"os"
+	b64 "encoding/base64"
 )
 
 type upsClient struct {
@@ -105,56 +105,37 @@ func (client *upsClient) createAndroidVariant(variant *androidVariant) (bool, *a
 func (client *upsClient) createIOSVariant(variant *iOSVariant) (bool, *iOSVariant) {
 	url := fmt.Sprintf("%s/%s/ios", BaseUrl, client.config.ApplicationId)
 
-//	log.Printf("UPS request:  %s", url)
-
 	params :=  map[string]string{
 		"name": variant.Name,
-		"passPhrase": variant.PassPhrase,
+		// IM
+		"passphrase": variant.PassPhrase,
 		"production" : "false",
 		"description": variant.Description,
 	}
 
-	mode := int(0777)
-	perms:= os.FileMode(mode)
 
-	err := ioutil.WriteFile("/tmp/certFile", variant.Certificate, perms)
+	decodedString, _ := b64.StdEncoding.DecodeString(string(variant.Certificate))
 
+	body := new(bytes.Buffer)
+	writer := multipart.NewWriter(body)
+
+	part, err := writer.CreateFormFile("certificate", "certificate")
 	if err != nil {
-		panic(err)
+		panic(err.Error())
 	}
 
-
-	file, err := os.Open("/tmp/certFile")
-	if err != nil {
-		log.Print("err:", err)
-	}
-
-	fileContents, err := ioutil.ReadAll(file)
-	if err != nil {
-		log.Print("err:", err)
-	}
-
-	fi, err := file.Stat()
-	if err != nil {
-		log.Print("err:", err)
-	}
-
-	defer file.Close()
-
-	payload := new(bytes.Buffer)
-	writer := multipart.NewWriter(payload)
-
-	part, err := writer.CreateFormFile("certificate", fi.Name())
-	part.Write(fileContents)
+	part.Write(decodedString)
 
 	for key, val := range params {
 		_ = writer.WriteField(key, val)
 	}
 
-	writer.Close()
+	err = writer.Close()
+	if err != nil {
+		panic(err.Error())
+	}
 
-	req, err := http.NewRequest(http.MethodPost, url, payload)
-	log.Print(req.MultipartForm.Value)
+	req, err := http.NewRequest(http.MethodPost, url, body)
 	req.Header.Set("Content-Type", writer.FormDataContentType())
 
 	log.Printf("UPS REQUEST: " , req)
@@ -171,9 +152,8 @@ func (client *upsClient) createIOSVariant(variant *iOSVariant) (bool, *iOSVarian
 	log.Printf("UPS responded with status code: %s ", resp.Status)
 
 	defer resp.Body.Close()
-	body, _ := ioutil.ReadAll(resp.Body)
+	b, _ := ioutil.ReadAll(resp.Body)
 	var createdVariant iOSVariant
-	json.Unmarshal(body, &createdVariant)
-
+	json.Unmarshal(b, &createdVariant)
 	return resp.StatusCode == 201, &createdVariant
 }
