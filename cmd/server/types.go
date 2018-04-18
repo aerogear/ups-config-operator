@@ -15,7 +15,7 @@ type androidVariant struct {
 
 type iOSVariant struct {
 	Certificate []byte `json:"certificate"`
-	PassPhrase string `json:"passPhrase"`
+	PassPhrase string `json:"passphrase"`
 	Production bool `json:"production"`
 	variant
 }
