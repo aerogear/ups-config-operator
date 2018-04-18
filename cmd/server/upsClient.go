@@ -113,7 +113,7 @@ func (client *upsClient) createIOSVariant(variant *iOSVariant) (bool, *iOSVarian
 
 	params :=  map[string]string{
 		"name": variant.Name,
-		"passphrase": variant.PassPhrase,
+		"passphrase": variant.Passphrase,
 		"production" : production,
 		"description": variant.Description,
 	}
