@@ -205,7 +205,6 @@ func handleIOSVariant(clientId string, cert string, passPhrase string) {
 		},
 	}
 
-	log.Print("handleIOSVariant Creating a new iOS variant:  ", payload)
 	success, variant := pushClient.createIOSVariant(payload)
 	if success {
 		createIOSVariantConfigMap(variant, clientId)

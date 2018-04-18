@@ -119,8 +119,11 @@ func (client *upsClient) createIOSVariant(variant *iOSVariant) (bool, *iOSVarian
 	}
 
 	// We need to decode it before sending
-	decodedString, _ := base64.StdEncoding.DecodeString(string(variant.Certificate))
-
+	decodedString, err := base64.StdEncoding.DecodeString(string(variant.Certificate))
+	if err != nil {
+		log.Print("Invalid cert - Please check this cert is in base64 encoded format: ", err)
+	}
+	
 	body := new(bytes.Buffer)
 	writer := multipart.NewWriter(body)
 	part, err := writer.CreateFormFile("certificate", "certificate")
@@ -128,13 +131,12 @@ func (client *upsClient) createIOSVariant(variant *iOSVariant) (bool, *iOSVarian
 		panic(err.Error())
 	}
 	part.Write(decodedString)
+
 	for key, val := range params {
 		_ = writer.WriteField(key, val)
 	}
-	err = writer.Close()
-	if err != nil {
-		panic(err.Error())
-	}
+
+	defer writer.Close()
 
 	req, err := http.NewRequest(http.MethodPost, url, body)
 	req.Header.Set("Content-Type", writer.FormDataContentType())
