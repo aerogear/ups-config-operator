@@ -72,7 +72,7 @@ func deleteSecret(name string) {
 	}
 }
 
-func createAndroidVariantConfigMap(variant *androidVariant, clientId string) {
+func createAndroidVariantConfigMap(variant *androidVariant, clientId string, variantReferenceId string) {
 	//initialise the UPS data which will be used for the configmap value
 	var variantUrl = pushClient.baseUrl + "/#/app/" + pushClient.config.ApplicationId + "/variants/" + variant.VariantID
 
@@ -104,6 +104,7 @@ func createAndroidVariantConfigMap(variant *androidVariant, clientId string) {
 			"projectNumber": variant.ProjectNumber,
 			"type":          "android",
 			"variantURL":    variantUrl,
+			"variantReferenceId": variantReferenceId,
 		},
 	}
 	_, err := k8client.CoreV1().ConfigMaps(os.Getenv(NamespaceKey)).Create(&payload)
@@ -170,6 +171,7 @@ func handleAndroidVariant(secret *BindingSecret) {
 	clientId := string(secret.Data[BindingClientId])
 	googleKey := string(secret.Data[BindingGoogleKey])
 	projectNumber := string(secret.Data[BindingProjectNumber])
+	variantReferenceId := string(secret.Data[VariantReferenceId])
 
 	if pushClient.hasAndroidVariant(googleKey) == nil {
 		payload := &androidVariant{
@@ -185,7 +187,7 @@ func handleAndroidVariant(secret *BindingSecret) {
 		log.Print("Creating a new android variant", payload)
 		success, variant := pushClient.createAndroidVariant(payload)
 		if success {
-			createAndroidVariantConfigMap(variant, clientId)
+			createAndroidVariantConfigMap(variant, clientId, variantReferenceId)
 		} else {
 			log.Fatal("No variant has been created in UPS, skipping config map")
 		}
@@ -330,7 +332,6 @@ func handleAddSecret(obj runtime.Object) {
 			log.Print("A mobile binding secret of type `IOS` was added")
 			handleIOSVariant(&secret) 
 		}
-
 		// Always delete the secret after handling it regardless of any new resources
 		// was created
 		deleteSecret(secret.Name)
