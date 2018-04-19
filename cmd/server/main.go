@@ -160,17 +160,21 @@ func createIOSVariantConfigMap(variant *iOSVariant, clientId string, variantRefe
 	}
 }
 
-func handleAndroidVariant(key string, clientId string, pn string) {
+func handleAndroidVariant(secret *BindingSecret) {
 	// Only instantiate the push client here because we need to wait for the ups secret to
 	// be available
 	if pushClient == nil {
 		pushClient = pushClientOrDie()
 	}
 
-	if pushClient.hasAndroidVariant(key) == nil {
+	clientId := string(secret.Data[BindingClientId])
+	googleKey := string(secret.Data[BindingGoogleKey])
+	projectNumber := string(secret.Data[BindingProjectNumber])
+
+	if pushClient.hasAndroidVariant(googleKey) == nil {
 		payload := &androidVariant{
-			ProjectNumber: pn,
-			GoogleKey:     key,
+			ProjectNumber: projectNumber,
+			GoogleKey:     googleKey,
 			variant: variant{
 				Name:      clientId,
 				VariantID: uuid.NewV4().String(),
@@ -186,7 +190,7 @@ func handleAndroidVariant(key string, clientId string, pn string) {
 			log.Fatal("No variant has been created in UPS, skipping config map")
 		}
 	} else {
-		log.Printf("A variant for google key '%s' already exists", key)
+		log.Printf("A variant for google key '%s' already exists", googleKey)
 	}
 }
 
@@ -321,10 +325,7 @@ func handleAddSecret(obj runtime.Object) {
 
 		if appType == "Android" {
 			log.Print("A mobile binding secret of type `Android` was added")
-			clientId := string(secret.Data[BindingClientId])
-			googleKey := string(secret.Data[BindingGoogleKey])
-			projectNumber := string(secret.Data[BindingProjectNumber])
-			handleAndroidVariant(googleKey, clientId, projectNumber)
+			handleAndroidVariant(&secret)
 		} else if appType == "IOS" {
 			log.Print("A mobile binding secret of type `IOS` was added")
 			handleIOSVariant(&secret) 
