@@ -17,6 +17,7 @@ import (
 	"k8s.io/client-go/pkg/api/v1"
 	"math/rand"
 	"time"
+
 )
 
 var k8client *kubernetes.Clientset
@@ -39,6 +40,7 @@ const UpsURI = "uri"
 const GoogleKey = "googleKey"
 const IOSCert = "cert"
 const IOSPassPhrase = "passphrase"
+const VariantReferenceId = "variantReferenceId" // this is a specific id for deleting resources such as secrets and configmaps - this is NOT the UPS variant id
 
 var letters = []rune("abcdefghijklmnopqrstuvwxyz0123456789")
 
@@ -112,7 +114,7 @@ func createAndroidVariantConfigMap(variant *androidVariant, clientId string) {
 	}
 }
 
-func createIOSVariantConfigMap(variant *iOSVariant, clientId string) {
+func createIOSVariantConfigMap(variant *iOSVariant, clientId string, variantReferenceId string) {
 	//initialise the UPS data which will be used for the configmap value
 	var variantUrl = pushClient.baseUrl + "/#/app/" + pushClient.config.ApplicationId + "/variants/" + variant.VariantID
 
@@ -147,6 +149,7 @@ func createIOSVariantConfigMap(variant *iOSVariant, clientId string) {
 		    "production":	production,
 			"type":          "ios",
 			"variantURL":    variantUrl,
+			"variantReferenceId": variantReferenceId,
 		},
 	}
 	_, err := k8client.CoreV1().ConfigMaps(os.Getenv(NamespaceKey)).Create(&payload)
@@ -187,12 +190,18 @@ func handleAndroidVariant(key string, clientId string, pn string) {
 	}
 }
 
-func handleIOSVariant(clientId string, cert string, passPhrase string) {
+func handleIOSVariant(secret *BindingSecret) {
 	// Only instantiate the push client here because we need to wait for the ups secret to
 	// be available
 	if pushClient == nil {
 		pushClient = pushClientOrDie()
 	}
+
+	clientId := string(secret.Data[BindingClientId])
+	cert := string(secret.Data[IOSCert])
+	passPhrase := string(secret.Data[IOSPassPhrase])
+	variantReferenceId := string(secret.Data[VariantReferenceId])
+
 	certByteArray := []byte (cert)
 	payload := &iOSVariant{
 		Certificate: certByteArray,
@@ -207,9 +216,53 @@ func handleIOSVariant(clientId string, cert string, passPhrase string) {
 
 	success, variant := pushClient.createIOSVariant(payload)
 	if success {
-		createIOSVariantConfigMap(variant, clientId)
+		createIOSVariantConfigMap(variant, clientId, variantReferenceId)
 	} else {
 		log.Print("No variant has been created in UPS, skipping config map")
+	}
+}
+
+func handleDeleteIOSVariant(secret *BindingSecret) {
+	if _, ok := secret.Data[VariantReferenceId]; !ok {
+		log.Println("Secret does not contain a variant reference id, can't delete the variant")
+		return
+	}
+	variantReferenceId := string(secret.Data[VariantReferenceId])
+
+	// Get all config maps
+	configs, err := k8client.CoreV1().ConfigMaps(os.Getenv(NamespaceKey)).List(metav1.ListOptions{})
+	if err != nil {
+		panic(err.Error())
+	}
+
+	configMapDeleted := false
+	variantId := ""  // UPS variant id of the variant to be deleted
+
+	//Filter config maps to identify the one associated with the given variant reference id
+	for _, config := range configs.Items {
+		if config.Labels["resourceType"] == "binding" && config.Data[VariantReferenceId] == variantReferenceId {
+			name := config.Name
+			log.Printf("Config map with name `%s` has a matching variant reference id", name)
+			variantId = string(config.Data["variantID"])
+			// Delete the config map
+			err := k8client.CoreV1().ConfigMaps(os.Getenv(NamespaceKey)).Delete(name, nil)
+			if err != nil {
+				log.Fatal("Error deleting config map with name `%s`", name, err)
+				break
+			}
+			configMapDeleted = true
+			log.Printf("Config map `%s` has been deleted", name)
+			break
+		}
+	}
+
+	if pushClient == nil {
+		pushClient = pushClientOrDie()
+	}
+
+	// Delete the UPS variant only if the associated config map has been deleted
+	if configMapDeleted == true {
+		pushClient.deleteIOSVariant(variantId)
 	}
 }
 
@@ -263,7 +316,6 @@ func handleAddSecret(obj runtime.Object) {
 	raw, _ := json.Marshal(obj)
 	var secret = BindingSecret{}
 	json.Unmarshal(raw, &secret)
-
 	if val, ok := secret.Labels[SecretTypeKey]; ok && val == BindingSecretType {
 		appType := string(secret.Data[BindingAppType])
 
@@ -275,10 +327,7 @@ func handleAddSecret(obj runtime.Object) {
 			handleAndroidVariant(googleKey, clientId, projectNumber)
 		} else if appType == "IOS" {
 			log.Print("A mobile binding secret of type `IOS` was added")
-			clientId := string(secret.Data[BindingClientId])
-			cert := string(secret.Data[IOSCert])
-			passPhrase := string(secret.Data[IOSPassPhrase])
-			handleIOSVariant(clientId, cert, passPhrase)
+			handleIOSVariant(&secret) 
 		}
 
 		// Always delete the secret after handling it regardless of any new resources
@@ -291,10 +340,16 @@ func handleDeleteSecret(obj runtime.Object) {
 	raw, _ := json.Marshal(obj)
 	var secret = BindingSecret{}
 	json.Unmarshal(raw, &secret)
+	appType := string(secret.Data[BindingAppType])
 
 	for _, ref := range secret.ObjectMeta.OwnerReferences {
-		if ref.Kind == "ServiceBinding" {
+		if ref.Kind == "ServiceBinding" && appType == "Android" {
+			log.Print("A mobile binding secret of type `Android` will be deleted")
 			handleDeleteAndroidVariant(&secret)
+			break
+		} else if ref.Kind == "ServiceBinding" && appType == "IOS"{
+			log.Print("A mobile binding secret of type `iOS` will be deleted")
+			handleDeleteIOSVariant(&secret)
 			break
 		}
 	}
