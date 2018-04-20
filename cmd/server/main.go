@@ -17,7 +17,7 @@ import (
 	"k8s.io/client-go/pkg/api/v1"
 	"math/rand"
 	"time"
-
+	"fmt"
 )
 
 var k8client *kubernetes.Clientset
@@ -42,6 +42,11 @@ const IOSCert = "cert"
 const IOSPassPhrase = "passphrase"
 const VariantReferenceId = "variantReferenceId" // this is a specific id for deleting resources such as secrets and configmaps - this is NOT the UPS variant id
 
+const (
+	VTypeAndroid = iota
+	VTypeiOS = iota
+)
+
 var letters = []rune("abcdefghijklmnopqrstuvwxyz0123456789")
 
 // This is required because importing core/v1/Secret leads to a double import and redefinition
@@ -65,6 +70,7 @@ func getRandomIdentifier(length int) string {
 // Deletes the binding secret after the sync operation has completed
 func deleteSecret(name string) {
 	err := k8client.CoreV1().Secrets(os.Getenv(NamespaceKey)).Delete(name, nil)
+
 	if err != nil {
 		log.Fatal("Error creating config map", err)
 	} else {
@@ -182,6 +188,7 @@ func handleAndroidVariant(key string, clientId string, pn string) {
 		success, variant := pushClient.createAndroidVariant(payload)
 		if success {
 			createAndroidVariantConfigMap(variant, clientId)
+			updateAndroidConfig(clientId, variant)
 		} else {
 			log.Fatal("No variant has been created in UPS, skipping config map")
 		}
@@ -310,6 +317,95 @@ func handleDeleteAndroidVariant(secret *BindingSecret) {
 	if configMapDeleted == true {
 		pushClient.deleteVariant(googleKey)
 	}
+}
+
+func findMobileClientConfig(clientId string) *v1.Secret {
+	filter := metav1.ListOptions{LabelSelector: fmt.Sprintf("clientId=%s,serviceName=ups", clientId)}
+	secrets, err := k8client.CoreV1().Secrets(os.Getenv(NamespaceKey)).List(filter)
+
+	if err !=  nil {
+		panic(err.Error())
+	}
+
+	// No secret exists yet, that's ok, we have to create one
+	if len(secrets.Items) == 0 {
+		return nil
+	}
+
+	// Multiple secrets for the same clientId found, that's anerror
+	if len(secrets.Items) > 0 {
+		panic(fmt.Sprintf("Multiple secrets found for clientId %s", clientId))
+	}
+
+	return &secrets.Items[0]
+}
+
+func createClientConfigSecret(clientId string) *v1.Secret {
+	configSecretName := fmt.Sprintf("variant-secret-%s-%s", clientId, getRandomIdentifier(5))
+
+	payload := v1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: configSecretName,
+			Labels: map[string]string{
+				"mobile":       "enabled",
+				"serviceName":  "ups",
+
+				// Used by the mobile-cli to discover config objects
+				"serviceInstanceId": pushClient.serviceInstanceId,
+				"clientId": clientId,
+			},
+		},
+		Data: map[string][]byte{
+			"config": []byte("{}"),
+		},
+	}
+
+	secret, err := k8client.CoreV1().Secrets(os.Getenv(NamespaceKey)).Create(&payload)
+	if err != nil {
+		log.Fatal("Error creating config map", err)
+	} else {
+		log.Printf("Config secret `%s` for variant created", configSecretName)
+	}
+
+	return secret
+}
+
+func updateAndroidConfig(clientId string, config *androidVariant) {
+	configSecret := findMobileClientConfig(clientId)
+	if configSecret == nil {
+		// No config secret exists for this client yet. Create one.
+		configSecret = createClientConfigSecret(clientId)
+	}
+
+	// Stringify the new cnofig
+	droidConfig, err := json.Marshal(config)
+	if err != nil {
+		panic(err.Error())
+	}
+	log.Printf("Setting new android config: %s", string(droidConfig))
+
+	// Retrieve the current config as an object
+	var currentConfig map[string]interface{}
+	json.Unmarshal(configSecret.Data["config"], &currentConfig)
+
+	// Overwrite the old platform config
+	currentConfig["android"] = droidConfig
+	log.Printf("New config object: %s", currentConfig)
+
+	// Create a string of the complete config object
+	currentConfigString, err := json.Marshal(currentConfig)
+	if err != nil {
+		panic(err.Error())
+	}
+
+	// Set the new config
+	configSecret.Data["url"] = []byte(pushClient.baseUrl)
+	configSecret.Data["config"] = currentConfigString
+	configSecret.Data["name"] = []byte("ups")
+	configSecret.Data["type"] = []byte("AeroGear Unifiedpush Server")
+
+	k8client.CoreV1().Secrets(os.Getenv(NamespaceKey)).Update(configSecret)
+	log.Println("Updated android config")
 }
 
 func handleAddSecret(obj runtime.Object) {
