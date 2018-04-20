@@ -24,7 +24,6 @@ func (client *upsClient) deleteVariant(platform string , variantId string) bool 
 
 	if variant != nil {
 		log.Printf("Deleting %s variant with id `%s`", platform,  variant.VariantID)
-		log.Printf("Deleting %s variant with id `%s`", platform,  variant.VariantID)
 
 		url := fmt.Sprintf("%s/%s/adm/%s", BaseUrl, client.config.ApplicationId, variant.VariantID)
 		log.Printf("UPS request", url)
@@ -112,6 +111,8 @@ func (client *upsClient) createAndroidVariant(variant *androidVariant) (bool, *a
 		panic(err.Error())
 	}
 
+	log.Println("UPS Payload", string(payload))
+
 	req, err := http.NewRequest(http.MethodPost, url, bytes.NewBuffer(payload))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "application/json")
@@ -122,7 +123,7 @@ func (client *upsClient) createAndroidVariant(variant *androidVariant) (bool, *a
 		panic(err.Error())
 	}
 
-	log.Printf("UPS responded with status code ", resp.Status)
+	log.Printf("UPS responded with status code ", resp.StatusCode)
 
 	defer resp.Body.Close()
 	body, _ := ioutil.ReadAll(resp.Body)

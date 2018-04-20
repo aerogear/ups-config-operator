@@ -1,5 +1,10 @@
 package main
 
+import (
+	"bytes"
+	"encoding/json"
+)
+
 type variant struct {
 	Name        string `json:"name"`
 	Description string `json:"description"`
@@ -22,4 +27,31 @@ type iOSVariant struct {
 
 type pushApplication struct {
 	ApplicationId string `json:"applicationId"`
+}
+
+func (this *androidVariant) getJson() ([]byte, error) {
+	config := map[string]string{
+		"senderId": this.ProjectNumber,
+		"variantId": this.VariantID,
+		"variantSecret": this.Secret,
+	}
+
+	buffer := &bytes.Buffer{}
+	encoder := json.NewEncoder(buffer)
+	encoder.SetEscapeHTML(false)
+	err := encoder.Encode(config)
+	return buffer.Bytes(), err
+}
+
+func (this *iOSVariant) getJson() ([]byte, error) {
+	config := map[string]string{
+		"variantId": this.VariantID,
+		"variantSecret": this.Secret,
+	}
+
+	buffer := &bytes.Buffer{}
+	encoder := json.NewEncoder(buffer)
+	encoder.SetEscapeHTML(false)
+	err := encoder.Encode(config)
+	return buffer.Bytes(), err
 }
