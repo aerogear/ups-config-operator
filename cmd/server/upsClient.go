@@ -19,10 +19,12 @@ type upsClient struct {
 
 const BaseUrl = "http://localhost:8080/rest/applications"
 
-func (client *upsClient) deleteIOSVariant(variantId string) bool {
-	variant := client.hasIOSVariant(variantId)
+func (client *upsClient) deleteVariant(platform string , variantId string) bool {
+	variant := client.hasVariant(platform, variantId)
+
 	if variant != nil {
-		log.Printf("Deleting variant with id `%s`", variant.VariantID)
+		log.Printf("Deleting %s variant with id `%s`", platform,  variant.VariantID)
+		log.Printf("Deleting %s variant with id `%s`", platform,  variant.VariantID)
 
 		url := fmt.Sprintf("%s/%s/adm/%s", BaseUrl, client.config.ApplicationId, variant.VariantID)
 		log.Printf("UPS request", url)
@@ -44,9 +46,9 @@ func (client *upsClient) deleteIOSVariant(variantId string) bool {
 	return false
 }
 
-// Find an iOS Variant by it's variant id
-func (client *upsClient) hasIOSVariant(variantId string) *iOSVariant {
-	url := fmt.Sprintf("%s/%s/ios", BaseUrl, client.config.ApplicationId)
+// Find a Variant by it's variant id
+func (client *upsClient) hasVariant(platform string, variantId string) *variant {
+	url := fmt.Sprintf("%s/%s/%s", BaseUrl, client.config.ApplicationId, platform)
 	log.Printf("UPS request", url)
 
 	resp, err := http.Get(url)
@@ -55,12 +57,12 @@ func (client *upsClient) hasIOSVariant(variantId string) *iOSVariant {
 
 		// Return true here to prevent creating a new variant when the
 		// request fails
-		return &iOSVariant{}
+		return &variant{}
 	}
 
 	defer resp.Body.Close()
 	body, _ := ioutil.ReadAll(resp.Body)
-	variants := make([]iOSVariant, 0)
+	variants := make([]variant, 0)
 	json.Unmarshal(body, &variants)
 
 	for _, variant := range variants {
@@ -72,31 +74,6 @@ func (client *upsClient) hasIOSVariant(variantId string) *iOSVariant {
 	return nil
 }
 
-// Delete the variant with the given google key
-func (client *upsClient) deleteVariant(key string) bool {
-	variant := client.hasAndroidVariant(key)
-	if variant != nil {
-		log.Printf("Deleting variant with id `%s`", variant.VariantID)
-
-		url := fmt.Sprintf("%s/%s/adm/%s", BaseUrl, client.config.ApplicationId, variant.VariantID)
-		log.Printf("UPS request", url)
-
-		req, err := http.NewRequest(http.MethodDelete, url, nil)
-
-		httpClient := http.Client{}
-		resp, err := httpClient.Do(req)
-		if err != nil {
-			log.Fatal(err.Error())
-			return false
-		}
-
-		log.Printf("Variant `%s` has been deleted", variant.VariantID)
-		return resp.StatusCode == 204
-	}
-
-	log.Printf("No variant found to delete (google key: `%s`)", key)
-	return false
-}
 
 // Find an Android Variant by it's Google Key
 func (client *upsClient) hasAndroidVariant(key string) *androidVariant {
