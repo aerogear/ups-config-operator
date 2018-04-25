@@ -11,7 +11,6 @@ import (
 	"github.com/satori/go.uuid"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes"
-	mobile "k8s.io/client-go/pkg/api/v1"
 	"k8s.io/client-go/rest"
 
 	"k8s.io/client-go/pkg/api/v1"
@@ -52,6 +51,7 @@ type BindingSecret struct {
 	StringData        map[string]string `json:"stringData,omitempty" protobuf:"bytes,4,rep,name=stringData"`
 }
 
+// Create a random identifier of the given length. Useful for randomized resource names
 func getRandomIdentifier(length int) string {
 	result := make([]rune, length)
 	for i := 0; i < length; i++ {
@@ -61,7 +61,7 @@ func getRandomIdentifier(length int) string {
 	return string(result)
 }
 
-// Deletes the binding secret after the sync operation has completed
+// Deletes a secret
 func deleteSecret(name string) {
 	err := k8client.CoreV1().Secrets(os.Getenv(NamespaceKey)).Delete(name, nil)
 
@@ -100,7 +100,7 @@ func handleAndroidVariant(secret *BindingSecret) {
 			config, _ := variant.getJson()
 			updateConfiguration("android", clientId, variant.VariantID, config)
 		} else {
-			log.Println("No variant has been created in UPS, skipping config map")
+			log.Println("No variant has been created in UPS, skipping config secret")
 		}
 	} else {
 		log.Printf("A variant for google key '%s' already exists", googleKey)
@@ -135,10 +135,11 @@ func handleIOSVariant(secret *BindingSecret) {
 		config, _ := variant.getJson()
 		updateConfiguration("ios", clientId, variant.VariantID, config)
 	} else {
-		log.Print("No variant has been created in UPS, skipping config map")
+		log.Print("No variant has been created in UPS, skipping config secret")
 	}
 }
 
+// Deletes a configuration from the config secret and from the UPS server
 func handleDeleteVariant(secret *BindingSecret) {
 	appType := strings.ToLower(string(secret.Data["appType"]))
 	success, variantId := removeConfigFromClientSecret(secret)
@@ -148,6 +149,7 @@ func handleDeleteVariant(secret *BindingSecret) {
 	}
 }
 
+// Find a mobile client bound ups config secret
 func findMobileClientConfig(clientId string) *v1.Secret {
 	filter := metav1.ListOptions{LabelSelector: fmt.Sprintf("clientId=%s,serviceName=ups", clientId)}
 	secrets, err := k8client.CoreV1().Secrets(os.Getenv(NamespaceKey)).List(filter)
@@ -161,7 +163,7 @@ func findMobileClientConfig(clientId string) *v1.Secret {
 		return nil
 	}
 
-	// Multiple secrets for the same clientId found, that's anerror
+	// Multiple secrets for the same clientId found, that's an error
 	if len(secrets.Items) > 1 {
 		panic(fmt.Sprintf("Multiple secrets found for clientId %s", clientId))
 	}
@@ -169,8 +171,9 @@ func findMobileClientConfig(clientId string) *v1.Secret {
 	return &secrets.Items[0]
 }
 
+// Creates a mobile client bound ups config secret
 func createClientConfigSecret(clientId string) *v1.Secret {
-	configSecretName := fmt.Sprintf("variant-secret-%s-%s", clientId, getRandomIdentifier(5))
+	configSecretName := fmt.Sprintf("ups-secret-%s-%s", clientId, getRandomIdentifier(5))
 
 	payload := v1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
@@ -191,7 +194,7 @@ func createClientConfigSecret(clientId string) *v1.Secret {
 
 	secret, err := k8client.CoreV1().Secrets(os.Getenv(NamespaceKey)).Create(&payload)
 	if err != nil {
-		log.Fatal("Error creating config map", err)
+		log.Fatal("Error creating ups config secret", err)
 	} else {
 		log.Printf("Config secret `%s` for variant created", configSecretName)
 	}
@@ -199,12 +202,14 @@ func createClientConfigSecret(clientId string) *v1.Secret {
 	return secret
 }
 
+// Removes a platform configuration (e.g. iOS or Android) from the `Data.config` map of a UPS configuration
+// secret. If there is only one platform it will delete the whole secret.
 func removeConfigFromClientSecret(secret *BindingSecret) (bool, string) {
 	clientId := string(secret.Data["clientId"])
 	configSecret := findMobileClientConfig(clientId)
 
 	if configSecret == nil {
-		log.Printf("Cannot delete config secret for client `%s` because it does not exist", clientId)
+		log.Printf("Cannot delete configuration for client `%s` because the secret does not exist", clientId)
 		return false, ""
 	}
 
@@ -230,7 +235,7 @@ func removeConfigFromClientSecret(secret *BindingSecret) (bool, string) {
 
 		// Delete the config of the given app type and it's URL annotation
 		delete(currentConfig, appType)
-		delete(configSecret.Annotations, appType)
+		delete(configSecret.Annotations, fmt.Sprintf("variant/%s", appType))
 
 		// Create a string of the new config object
 		currentConfigString, err := json.Marshal(currentConfig)
@@ -254,7 +259,9 @@ func getVariantIdFromConfig(config string) string {
 	return configMap["variantId"]
 }
 
-func updateConfiguration(appType string, clientId string, variantId string, config []byte) {
+// Updates the `Data.config` map of a UPS configuration secret
+// The secret can contain multiple variants (e.g. iOS and Android) but is bound to one mobile client
+func updateConfiguration(appType string, clientId string, variantId string, newConfig []byte) {
 	configSecret := findMobileClientConfig(clientId)
 	if configSecret == nil {
 		// No config secret exists for this client yet. Create one.
@@ -266,11 +273,10 @@ func updateConfiguration(appType string, clientId string, variantId string, conf
 	json.Unmarshal(configSecret.Data["config"], &currentConfig)
 
 	// Overwrite the old platform config
-	currentConfig[appType] = []byte(config)
+	currentConfig[appType] = []byte(newConfig)
 
 	// Create a string of the complete config object
 	currentConfigString, err := json.Marshal(currentConfig)
-
 	if err != nil {
 		panic(err.Error())
 	}
@@ -299,13 +305,12 @@ func handleAddSecret(obj runtime.Object) {
 	json.Unmarshal(raw, &secret)
 	if val, ok := secret.Labels[SecretTypeKey]; ok && val == BindingSecretType {
 		appType := string(secret.Data[BindingAppType])
+		log.Printf("A mobile binding secret of type `%s` was added", appType)
 
 		if appType == "Android" {
-			log.Print("A mobile binding secret of type `Android` was added")
 			handleAndroidVariant(&secret)
 		} else if appType == "IOS" {
-			log.Print("A mobile binding secret of type `IOS` was added")
-			handleIOSVariant(&secret) 
+			handleIOSVariant(&secret)
 		}
 		// Always delete the secret after handling it regardless of any new resources
 		// was created
@@ -344,12 +349,6 @@ func watchLoop() {
 	}
 }
 
-func convertSecretToUpsSecret(s *mobile.Secret) *pushApplication {
-	return &pushApplication{
-		ApplicationId: string(s.Data["applicationId"]),
-	}
-}
-
 func kubeOrDie(config *rest.Config) *kubernetes.Clientset {
 	k8client, err := kubernetes.NewForConfig(config)
 	if err != nil {
@@ -368,7 +367,9 @@ func pushClientOrDie() *upsClient {
 	serviceInstanceId := upsSecret.Labels[ServiceInstanceIdKey]
 
 	return &upsClient{
-		config: convertSecretToUpsSecret(upsSecret),
+		config: &pushApplication{
+			ApplicationId: string(upsSecret.Data["applicationId"]),
+		},
 		serviceInstanceId: serviceInstanceId,
 		baseUrl: upsBaseURL,
 	}
