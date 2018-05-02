@@ -2,22 +2,25 @@ package main
 
 import (
 	"os"
+	"strconv"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"encoding/json"
 
 	"log"
+
 	"github.com/satori/go.uuid"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 
-	"k8s.io/client-go/pkg/api/v1"
-	"math/rand"
-	"time"
 	"fmt"
+	"math/rand"
 	"strings"
+	"time"
+
+	"k8s.io/client-go/pkg/api/v1"
 )
 
 var k8client *kubernetes.Clientset
@@ -39,6 +42,7 @@ const UpsSecretName = "unified-push-server"
 const UpsURI = "uri"
 const IOSCert = "cert"
 const IOSPassPhrase = "passphrase"
+const IOSIsProduction = "isProduction"
 
 var letters = []rune("abcdefghijklmnopqrstuvwxyz0123456789")
 
@@ -117,12 +121,19 @@ func handleIOSVariant(secret *BindingSecret) {
 	clientId := string(secret.Data[BindingClientId])
 	cert := string(secret.Data[IOSCert])
 	passPhrase := string(secret.Data[IOSPassPhrase])
+	isProductionString := string(secret.Data[IOSIsProduction])
+	isProduction, err := strconv.ParseBool(isProductionString)
 
-	certByteArray := []byte (cert)
+	if err != nil {
+		log.Printf("iOS variant with clientId %v is invalid, isProduction value %v should be true or false. Setting to false", clientId, isProductionString)
+		isProduction = false
+	}
+
+	certByteArray := []byte(cert)
 	payload := &iOSVariant{
 		Certificate: certByteArray,
-		Passphrase:     passPhrase,
-		Production: false, //false for now while testing functionality
+		Passphrase:  passPhrase,
+		Production:  isProduction, //false for now while testing functionality
 		variant: variant{
 			Name:      clientId,
 			VariantID: uuid.NewV4().String(),
@@ -154,7 +165,7 @@ func findMobileClientConfig(clientId string) *v1.Secret {
 	filter := metav1.ListOptions{LabelSelector: fmt.Sprintf("clientId=%s,serviceName=ups", clientId)}
 	secrets, err := k8client.CoreV1().Secrets(os.Getenv(NamespaceKey)).List(filter)
 
-	if err !=  nil {
+	if err != nil {
 		panic(err.Error())
 	}
 
@@ -179,12 +190,12 @@ func createClientConfigSecret(clientId string) *v1.Secret {
 		ObjectMeta: metav1.ObjectMeta{
 			Name: configSecretName,
 			Labels: map[string]string{
-				"mobile":       "enabled",
-				"serviceName":  "ups",
+				"mobile":      "enabled",
+				"serviceName": "ups",
 
 				// Used by the mobile-cli to discover config objects
 				"serviceInstanceId": pushClient.serviceInstanceId,
-				"clientId": clientId,
+				"clientId":          clientId,
 			},
 		},
 		Data: map[string][]byte{
@@ -227,7 +238,7 @@ func removeConfigFromClientSecret(secret *BindingSecret) (bool, string) {
 
 	// If there is only one platform in the configuration we can remove the whole
 	// secret (2 because there is another key for the server url)
-	if (len(currentConfig) == 2) {
+	if len(currentConfig) == 2 {
 		deleteSecret(configSecret.Name)
 		return true, variantId
 	} else {
@@ -290,7 +301,7 @@ func updateConfiguration(appType string, clientId string, variantId string, newC
 	variantUrl := pushClient.baseUrl + "/#/app/" + pushClient.config.ApplicationId + "/variants/" + variantId
 	urlAnnotation := fmt.Sprintf("variant/%s", appType)
 
-	if (configSecret.Annotations == nil) {
+	if configSecret.Annotations == nil {
 		configSecret.Annotations = make(map[string]string)
 	}
 	configSecret.Annotations[urlAnnotation] = variantUrl
@@ -371,12 +382,14 @@ func pushClientOrDie() *upsClient {
 			ApplicationId: string(upsSecret.Data["applicationId"]),
 		},
 		serviceInstanceId: serviceInstanceId,
-		baseUrl: upsBaseURL,
+		baseUrl:           upsBaseURL,
 	}
 }
 
 func main() {
 	rand.Seed(time.Now().Unix())
+
+	log.Print("Hello this is Dara's custom service")
 
 	config, err := rest.InClusterConfig()
 	if err != nil {
