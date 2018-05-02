@@ -389,8 +389,6 @@ func pushClientOrDie() *upsClient {
 func main() {
 	rand.Seed(time.Now().Unix())
 
-	log.Print("Hello this is Dara's custom service")
-
 	config, err := rest.InClusterConfig()
 	if err != nil {
 		panic(err.Error())
