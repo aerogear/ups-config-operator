@@ -156,7 +156,10 @@ func handleDeleteVariant(secret *BindingSecret) {
 	success, variantId := removeConfigFromClientSecret(secret)
 
 	if success {
-		pushClient.deleteVariant(appType, variantId)
+		success := pushClient.deleteVariant(appType, variantId)
+		if !success {
+			log.Printf("UPS reported an error when deleting variant %s", variantId)
+		}
 	}
 }
 

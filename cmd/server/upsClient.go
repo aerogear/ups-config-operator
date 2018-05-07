@@ -25,7 +25,9 @@ func (client *upsClient) deleteVariant(platform string , variantId string) bool 
 	if variant != nil {
 		log.Printf("Deleting %s variant with id `%s`", platform,  variant.VariantID)
 
-		url := fmt.Sprintf("%s/%s/adm/%s", BaseUrl, client.config.ApplicationId, variant.VariantID)
+		url := fmt.Sprintf("%s/%s/%s/%s", BaseUrl, client.config.ApplicationId,
+			platform, variant.VariantID)
+
 		log.Printf("UPS request", url)
 
 		req, err := http.NewRequest(http.MethodDelete, url, nil)
@@ -37,7 +39,7 @@ func (client *upsClient) deleteVariant(platform string , variantId string) bool 
 			return false
 		}
 
-		log.Printf("Variant `%s` has been deleted", variant.VariantID)
+		log.Printf("Variant `%s` has been deleted (status code %d)", variant.VariantID, resp.StatusCode)
 		return resp.StatusCode == 204
 	}
 
