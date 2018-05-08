@@ -21,9 +21,12 @@ import (
 	"time"
 
 	"k8s.io/client-go/pkg/api/v1"
+	sc "github.com/aerogear/ups-config-operator/pkg/client/servicecatalog/clientset/versioned"
+	"github.com/pkg/errors"
 )
 
 var k8client *kubernetes.Clientset
+var scclient *sc.Clientset
 var pushClient *upsClient
 
 const NamespaceKey = "NAMESPACE"
@@ -31,6 +34,7 @@ const ActionAdded = "ADDED"
 const ActionDeleted = "DELETED"
 const SecretTypeKey = "secretType"
 const ServiceInstanceIdKey = "serviceInstanceID"
+const ServiceBindingIdKey = "serviceBindingId"
 
 const BindingSecretType = "mobile-client-binding-secret"
 const BindingAppType = "appType"
@@ -86,6 +90,7 @@ func handleAndroidVariant(secret *BindingSecret) {
 	clientId := string(secret.Data[BindingClientId])
 	googleKey := string(secret.Data[BindingGoogleKey])
 	projectNumber := string(secret.Data[BindingProjectNumber])
+	serviceBindingId := string(secret.Data[ServiceBindingIdKey])
 
 	if pushClient.hasAndroidVariant(googleKey) == nil {
 		payload := &androidVariant{
@@ -102,7 +107,7 @@ func handleAndroidVariant(secret *BindingSecret) {
 		success, variant := pushClient.createAndroidVariant(payload)
 		if success {
 			config, _ := variant.getJson()
-			updateConfiguration("android", clientId, variant.VariantID, config)
+			updateConfiguration("android", clientId, variant.VariantID, config, serviceBindingId)
 		} else {
 			log.Println("No variant has been created in UPS, skipping config secret")
 		}
@@ -121,6 +126,7 @@ func handleIOSVariant(secret *BindingSecret) {
 	clientId := string(secret.Data[BindingClientId])
 	cert := string(secret.Data[IOSCert])
 	passPhrase := string(secret.Data[IOSPassPhrase])
+	serviceBindingId := string(secret.Data[ServiceBindingIdKey])
 	isProductionString := string(secret.Data[IOSIsProduction])
 	isProduction, err := strconv.ParseBool(isProductionString)
 
@@ -144,7 +150,7 @@ func handleIOSVariant(secret *BindingSecret) {
 	success, variant := pushClient.createIOSVariant(payload)
 	if success {
 		config, _ := variant.getJson()
-		updateConfiguration("ios", clientId, variant.VariantID, config)
+		updateConfiguration("ios", clientId, variant.VariantID, config, serviceBindingId)
 	} else {
 		log.Print("No variant has been created in UPS, skipping config secret")
 	}
@@ -160,6 +166,33 @@ func handleDeleteVariant(secret *BindingSecret) {
 		if !success {
 			log.Printf("UPS reported an error when deleting variant %s", variantId)
 		}
+	}
+}
+
+// Find a service binding by its ExternalID
+func getServiceBindingNameByID(bindingId string) (string, error) {
+	// Get a list of all service bindings in the namespace and find the one with a matching ExternalID
+	// This is not very efficient and could be improved with a jsonpath query but it looks like client-go
+	// does not support jsonpath or at least I could not find any examples.
+	bindings, err := scclient.ServicecatalogV1beta1().ServiceBindings(os.Getenv(NamespaceKey)).List(metav1.ListOptions{})
+	if err != nil {
+		return "", errors.New("Error listing service bindings")
+	}
+
+	for _, binding := range bindings.Items {
+		log.Printf("Checking service binding %s", binding.Name)
+		if binding.Spec.ExternalID == bindingId {
+			return binding.Name, nil
+		}
+	}
+
+	return "", errors.New(fmt.Sprintf("Can't find a binding with ExternalID %s", bindingId))
+}
+
+func deleteServiceBinding(bindingName string) {
+	err := scclient.ServicecatalogV1beta1().ServiceBindings(os.Getenv(NamespaceKey)).Delete(bindingName, nil)
+	if err != nil {
+		log.Printf("Error deleting service binding instance %s", bindingName)
 	}
 }
 
@@ -228,6 +261,7 @@ func removeConfigFromClientSecret(secret *BindingSecret) (bool, string) {
 	}
 
 	appType := strings.ToLower(string(secret.Data["appType"]))
+
 	log.Printf("Deleting %s configuration from `%s`", appType, clientId)
 
 	// Get the current config
@@ -247,9 +281,10 @@ func removeConfigFromClientSecret(secret *BindingSecret) (bool, string) {
 	} else {
 		log.Println("More than one variant available, updating configuration object")
 
-		// Delete the config of the given app type and it's URL annotation
+		// Delete the config of the given app type and it's annotations
 		delete(currentConfig, appType)
 		delete(configSecret.Annotations, fmt.Sprintf("variant/%s", appType))
+		delete(configSecret.Annotations, fmt.Sprintf("binding/%s", appType))
 
 		// Create a string of the new config object
 		currentConfigString, err := json.Marshal(currentConfig)
@@ -275,7 +310,7 @@ func getVariantIdFromConfig(config string) string {
 
 // Updates the `Data.config` map of a UPS configuration secret
 // The secret can contain multiple variants (e.g. iOS and Android) but is bound to one mobile client
-func updateConfiguration(appType string, clientId string, variantId string, newConfig []byte) {
+func updateConfiguration(appType string, clientId string, variantId string, newConfig []byte, bindingId string) {
 	configSecret := findMobileClientConfig(clientId)
 	if configSecret == nil {
 		// No config secret exists for this client yet. Create one.
@@ -303,11 +338,13 @@ func updateConfiguration(appType string, clientId string, variantId string, newC
 
 	variantUrl := pushClient.baseUrl + "/#/app/" + pushClient.config.ApplicationId + "/variants/" + variantId
 	urlAnnotation := fmt.Sprintf("variant/%s", appType)
+	bindingAnnotation := fmt.Sprintf("binding/%s", appType)
 
 	if configSecret.Annotations == nil {
 		configSecret.Annotations = make(map[string]string)
 	}
 	configSecret.Annotations[urlAnnotation] = variantUrl
+	configSecret.Annotations[bindingAnnotation] = bindingId
 
 	k8client.CoreV1().Secrets(os.Getenv(NamespaceKey)).Update(configSecret)
 	log.Printf("%s configuration of %s has been updated", appType, clientId)
@@ -363,12 +400,11 @@ func watchLoop() {
 	}
 }
 
-func kubeOrDie(config *rest.Config) *kubernetes.Clientset {
-	k8client, err := kubernetes.NewForConfig(config)
-	if err != nil {
-		panic(err.Error())
-	}
-	return k8client
+func clientsOrDie(config *rest.Config) (*kubernetes.Clientset, *sc.Clientset) {
+	k8client := kubernetes.NewForConfigOrDie(config)
+	scClient := sc.NewForConfigOrDie(config)
+
+	return k8client, scClient
 }
 
 func pushClientOrDie() *upsClient {
@@ -397,7 +433,7 @@ func main() {
 		panic(err.Error())
 	}
 
-	k8client = kubeOrDie(config)
+	k8client, scclient = clientsOrDie(config)
 
 	log.Print("Entering watch loop")
 
