@@ -25,11 +25,6 @@ type iOSVariant struct {
 	variant
 }
 
-type variantList struct {
-	Android []androidVariant
-	IOS     []iOSVariant
-}
-
 type pushApplication struct {
 	ApplicationId string `json:"applicationId"`
 }
@@ -37,7 +32,7 @@ type pushApplication struct {
 type VariantAnnotation struct {
 	Label string `json:"label"`
 	Value string `json:"value"`
-	Type string `json:"type"`
+	Type  string `json:"type"`
 }
 
 func (this *androidVariant) getJson() ([]byte, error) {

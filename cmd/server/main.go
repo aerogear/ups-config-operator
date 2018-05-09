@@ -532,7 +532,7 @@ func getUPSSecrets() ([]v1.Secret, error) {
 }
 
 func handleDeleteServiceBinding(servicebindingId string) error {
-	serviceBindingName, err := getServiceBindingNameByID(config["servicebindingId"])
+	serviceBindingName, err := getServiceBindingNameByID(servicebindingId)
 	if err != nil {
 		return err
 	}
