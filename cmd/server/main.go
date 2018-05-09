@@ -22,9 +22,11 @@ import (
 
 	"k8s.io/client-go/pkg/api/v1"
 	sc "github.com/aerogear/ups-config-operator/pkg/client/servicecatalog/clientset/versioned"
+	mc "github.com/aerogear/ups-config-operator/pkg/client/mobile/clientset/versioned"
 	"github.com/pkg/errors"
 )
 
+var mobileclient *mc.Clientset
 var k8client *kubernetes.Clientset
 var scclient *sc.Clientset
 var pushClient *upsClient
@@ -35,6 +37,7 @@ const ActionDeleted = "DELETED"
 const SecretTypeKey = "secretType"
 const ServiceInstanceIdKey = "serviceInstanceID"
 const ServiceBindingIdKey = "serviceBindingId"
+const ServiceInstanceNameKey = "serviceInstanceName"
 
 const BindingSecretType = "mobile-client-binding-secret"
 const BindingAppType = "appType"
@@ -91,6 +94,7 @@ func handleAndroidVariant(secret *BindingSecret) {
 	googleKey := string(secret.Data[BindingGoogleKey])
 	projectNumber := string(secret.Data[BindingProjectNumber])
 	serviceBindingId := string(secret.Data[ServiceBindingIdKey])
+	serviceInstanceName := string(secret.Data[ServiceInstanceNameKey])
 
 	if pushClient.hasAndroidVariant(googleKey) == nil {
 		payload := &androidVariant{
@@ -107,7 +111,7 @@ func handleAndroidVariant(secret *BindingSecret) {
 		success, variant := pushClient.createAndroidVariant(payload)
 		if success {
 			config, _ := variant.getJson()
-			updateConfiguration("android", clientId, variant.VariantID, config, serviceBindingId)
+			updateConfiguration("android", clientId, variant.VariantID, config, serviceBindingId, serviceInstanceName)
 		} else {
 			log.Println("No variant has been created in UPS, skipping config secret")
 		}
@@ -127,6 +131,7 @@ func handleIOSVariant(secret *BindingSecret) {
 	cert := string(secret.Data[IOSCert])
 	passPhrase := string(secret.Data[IOSPassPhrase])
 	serviceBindingId := string(secret.Data[ServiceBindingIdKey])
+	serviceInstanceName := string(secret.Data[ServiceInstanceNameKey])
 	isProductionString := string(secret.Data[IOSIsProduction])
 	isProduction, err := strconv.ParseBool(isProductionString)
 
@@ -150,7 +155,7 @@ func handleIOSVariant(secret *BindingSecret) {
 	success, variant := pushClient.createIOSVariant(payload)
 	if success {
 		config, _ := variant.getJson()
-		updateConfiguration("ios", clientId, variant.VariantID, config, serviceBindingId)
+		updateConfiguration("ios", clientId, variant.VariantID, config, serviceBindingId, serviceInstanceName)
 	} else {
 		log.Print("No variant has been created in UPS, skipping config secret")
 	}
@@ -159,7 +164,7 @@ func handleIOSVariant(secret *BindingSecret) {
 // Deletes a configuration from the config secret and from the UPS server
 func handleDeleteVariant(secret *BindingSecret) {
 	appType := strings.ToLower(string(secret.Data["appType"]))
-	success, variantId := removeConfigFromClientSecret(secret)
+	success, variantId := removeConfigFromClientSecret(secret, appType)
 
 	if success {
 		success := pushClient.deleteVariant(appType, variantId)
@@ -218,8 +223,65 @@ func findMobileClientConfig(clientId string) *v1.Secret {
 	return &secrets.Items[0]
 }
 
+// Creates the JSON string for the mobile-client variant annotation
+func generateVariantAnnotationValue(url string, appType string) ([]byte, error) {
+	annotation := VariantAnnotation{
+		 Type: "href",
+		 Label: fmt.Sprintf("UPS %s Variant", appType),
+		 Value: url,
+	}
+
+	return json.Marshal(annotation)
+}
+
+// Adds an annotation to the mobile client that contains information about this variant
+// (currently URL and Name)
+func addAnnotationToMobileClient(clientId string, appType string, variantUrl string, serviceInstanceName string) {
+	client, err := mobileclient.MobileV1alpha1().MobileClients(os.Getenv(NamespaceKey)).Get(clientId, metav1.GetOptions{})
+	if err != nil {
+		log.Printf("No mobile client with name %s found", clientId)
+		return
+	}
+
+	annotationName := fmt.Sprintf("org.aerogear.binding.%s/variant-%s", serviceInstanceName, appType)
+	annotationValue, err := generateVariantAnnotationValue(variantUrl, appType)
+	if err != nil {
+		log.Printf(err.Error())
+		return
+	}
+
+	if client.Annotations == nil {
+		client.Annotations = make(map[string]string)
+	}
+
+	client.Annotations[annotationName] = string(annotationValue)
+	_, err = mobileclient.MobileV1alpha1().MobileClients(os.Getenv(NamespaceKey)).Update(client)
+	if err != nil {
+		log.Printf(err.Error())
+	}
+}
+
+func removeAnnotationFromMobileClient(clientId string, appType string, serviceInstanceName string) {
+	client, err := mobileclient.MobileV1alpha1().MobileClients(os.Getenv(NamespaceKey)).Get(clientId, metav1.GetOptions{})
+	if err != nil {
+		log.Printf("No mobile client with name %s found", clientId)
+		return
+	}
+
+	if client.Annotations != nil {
+		annotationName := fmt.Sprintf("org.aerogear.binding.%s/variant-%s", serviceInstanceName, appType)
+		log.Printf("Removing annotation %s from mobile client %s", annotationName, clientId)
+
+		delete(client.Annotations, annotationName)
+		_, err = mobileclient.MobileV1alpha1().MobileClients(os.Getenv(NamespaceKey)).Update(client)
+		if err != nil {
+			log.Printf(err.Error())
+		}
+	}
+}
+
 // Creates a mobile client bound ups config secret
-func createClientConfigSecret(clientId string) *v1.Secret {
+func createClientConfigSecret(clientId string, serviceInstanceName string) *v1.Secret {
 	configSecretName := fmt.Sprintf("ups-secret-%s-%s", clientId, getRandomIdentifier(5))
 
 	payload := v1.Secret{
@@ -235,6 +297,8 @@ func createClientConfigSecret(clientId string) *v1.Secret {
 			},
 		},
 		Data: map[string][]byte{
+			// Used to generate the name of the UI annotations
+			ServiceInstanceNameKey: []byte(serviceInstanceName),
 			"config": []byte(fmt.Sprintf("{\"pushServerUrl\":\"%s\"}", pushClient.baseUrl)),
 		},
 	}
@@ -251,7 +315,7 @@ func createClientConfigSecret(clientId string) *v1.Secret {
 
 // Removes a platform configuration (e.g. iOS or Android) from the `Data.config` map of a UPS configuration
 // secret. If there is only one platform it will delete the whole secret.
-func removeConfigFromClientSecret(secret *BindingSecret) (bool, string) {
+func removeConfigFromClientSecret(secret *BindingSecret, appType string) (bool, string) {
 	clientId := string(secret.Data["clientId"])
 	configSecret := findMobileClientConfig(clientId)
 
@@ -260,9 +324,11 @@ func removeConfigFromClientSecret(secret *BindingSecret) (bool, string) {
 		return false, ""
 	}
 
-	appType := strings.ToLower(string(secret.Data["appType"]))
+	serviceInstanceName := string(configSecret.Data[ServiceInstanceNameKey])
+	log.Printf("Deleting %s configuration from %s", appType, clientId)
 
-	log.Printf("Deleting %s configuration from `%s`", appType, clientId)
+	// Remove the annotation also from the mobile client
+	removeAnnotationFromMobileClient(clientId, appType, serviceInstanceName)
 
 	// Get the current config
 	// Retrieve the current config as an object
@@ -283,7 +349,6 @@ func removeConfigFromClientSecret(secret *BindingSecret) (bool, string) {
 
 		// Delete the config of the given app type and it's annotations
 		delete(currentConfig, appType)
-		delete(configSecret.Annotations, fmt.Sprintf("variant/%s", appType))
 		delete(configSecret.Annotations, fmt.Sprintf("binding/%s", appType))
 
 		// Create a string of the new config object
@@ -310,11 +375,11 @@ func getVariantIdFromConfig(config string) string {
 
 // Updates the `Data.config` map of a UPS configuration secret
 // The secret can contain multiple variants (e.g. iOS and Android) but is bound to one mobile client
-func updateConfiguration(appType string, clientId string, variantId string, newConfig []byte, bindingId string) {
+func updateConfiguration(appType string, clientId string, variantId string, newConfig []byte, bindingId string, serviceInstanceName string) {
 	configSecret := findMobileClientConfig(clientId)
 	if configSecret == nil {
 		// No config secret exists for this client yet. Create one.
-		configSecret = createClientConfigSecret(clientId)
+		configSecret = createClientConfigSecret(clientId, serviceInstanceName)
 	}
 
 	// Retrieve the current config as an object
@@ -336,15 +401,19 @@ func updateConfiguration(appType string, clientId string, variantId string, newC
 	configSecret.Data["name"] = []byte("ups")
 	configSecret.Data["type"] = []byte("AeroGear Unifiedpush Server")
 
-	variantUrl := pushClient.baseUrl + "/#/app/" + pushClient.config.ApplicationId + "/variants/" + variantId
-	urlAnnotation := fmt.Sprintf("variant/%s", appType)
+	// Add the binding annotation to the UPS secret: this is done to link the actual ServiceBinding
+	// Instance back to this secret. In case the variant is deleted in UPS we can use this ID to delete
+	// the service binding
 	bindingAnnotation := fmt.Sprintf("binding/%s", appType)
-
 	if configSecret.Annotations == nil {
 		configSecret.Annotations = make(map[string]string)
 	}
-	configSecret.Annotations[urlAnnotation] = variantUrl
 	configSecret.Annotations[bindingAnnotation] = bindingId
+
+	// Annotate the mobile client with the variant URL. This is done to display a link to
+	// the variant in the Mobile Client UI in Openshift
+	variantUrl := pushClient.baseUrl + "/#/app/" + pushClient.config.ApplicationId + "/variants/" + variantId
+	addAnnotationToMobileClient(clientId, appType, variantUrl, serviceInstanceName)
 
 	k8client.CoreV1().Secrets(os.Getenv(NamespaceKey)).Update(configSecret)
 	log.Printf("%s configuration of %s has been updated", appType, clientId)
@@ -400,11 +469,10 @@ func watchLoop() {
 	}
 }
 
-func clientsOrDie(config *rest.Config) (*kubernetes.Clientset, *sc.Clientset) {
-	k8client := kubernetes.NewForConfigOrDie(config)
-	scClient := sc.NewForConfigOrDie(config)
-
-	return k8client, scClient
+func clientsOrDie(config *rest.Config) {
+	k8client = kubernetes.NewForConfigOrDie(config)
+	scclient = sc.NewForConfigOrDie(config)
+	mobileclient = mc.NewForConfigOrDie(config)
 }
 
 func pushClientOrDie() *upsClient {
@@ -433,7 +501,7 @@ func main() {
 		panic(err.Error())
 	}
 
-	k8client, scclient = clientsOrDie(config)
+	clientsOrDie(config)
 
 	log.Print("Entering watch loop")
 
