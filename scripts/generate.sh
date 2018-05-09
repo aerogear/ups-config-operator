@@ -11,4 +11,5 @@ fi
 cd ${code_gen} && git checkout release-1.8
 
 cd ${code_gen}
-./generate-internal-groups.sh "client" github.com/aerogear/ups-config-operator/pkg/client/mobile github.com/aerogear/ups-config-operator/pkg/apis github.com/aerogear/ups-config-operator/pkg/apis  "mobile:v1alpha1"
+./generate-internal-groups.sh client github.com/aerogear/ups-config-operator/pkg/client/mobile github.com/aerogear/ups-config-operator/pkg/apis github.com/aerogear/ups-config-operator/pkg/apis  "mobile:v1alpha1"
+./generate-internal-groups.sh client github.com/aerogear/ups-config-operator/pkg/client/servicecatalog github.com/aerogear/ups-config-operator/pkg/apis github.com/aerogear/ups-config-operator/pkg/apis "servicecatalog:v1beta1"
