@@ -20,9 +20,14 @@ type androidVariant struct {
 
 type iOSVariant struct {
 	Certificate []byte `json:"certificate"`
-	Passphrase string `json:"passphrase"`
-	Production bool `json:"production"`
+	Passphrase  string `json:"passphrase"`
+	Production  bool   `json:"production"`
 	variant
+}
+
+type variantList struct {
+	Android []androidVariant
+	IOS     []iOSVariant
 }
 
 type pushApplication struct {
@@ -37,8 +42,8 @@ type VariantAnnotation struct {
 
 func (this *androidVariant) getJson() ([]byte, error) {
 	config := map[string]string{
-		"senderId": this.ProjectNumber,
-		"variantId": this.VariantID,
+		"senderId":      this.ProjectNumber,
+		"variantId":     this.VariantID,
 		"variantSecret": this.Secret,
 	}
 
@@ -51,7 +56,7 @@ func (this *androidVariant) getJson() ([]byte, error) {
 
 func (this *iOSVariant) getJson() ([]byte, error) {
 	config := map[string]string{
-		"variantId": this.VariantID,
+		"variantId":     this.VariantID,
 		"variantSecret": this.Secret,
 	}
 
@@ -60,4 +65,10 @@ func (this *iOSVariant) getJson() ([]byte, error) {
 	encoder.SetEscapeHTML(false)
 	err := encoder.Encode(config)
 	return buffer.Bytes(), err
+}
+
+type UPSClientConfig struct {
+	Android       *map[string]string `json:"android,omitempty"`
+	IOS           *map[string]string `json:"ios,omitempty"`
+	PushServerURL string             `json:"pushServerUrl,omitempty"`
 }

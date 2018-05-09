@@ -51,6 +51,9 @@ const IOSCert = "cert"
 const IOSPassPhrase = "passphrase"
 const IOSIsProduction = "isProduction"
 
+// time in seconds
+const UPSPollingInterval = 5
+
 var letters = []rune("abcdefghijklmnopqrstuvwxyz0123456789")
 
 // This is required because importing core/v1/Secret leads to a double import and redefinition
@@ -294,6 +297,7 @@ func createClientConfigSecret(clientId string, serviceInstanceName string) *v1.S
 				// Used by the mobile-cli to discover config objects
 				"serviceInstanceId": pushClient.serviceInstanceId,
 				"clientId":          clientId,
+				"pushApplicationId": pushClient.config.ApplicationId,
 			},
 		},
 		Data: map[string][]byte{
@@ -451,7 +455,7 @@ func handleDeleteSecret(obj runtime.Object) {
 	}
 }
 
-func watchLoop() {
+func enterWatchLoop() {
 	events, err := k8client.CoreV1().Secrets(os.Getenv(NamespaceKey)).Watch(metav1.ListOptions{})
 	if err != nil {
 		panic(err.Error())
@@ -493,6 +497,92 @@ func pushClientOrDie() *upsClient {
 	}
 }
 
+func getUPSClientConfigsFromSecrets(secrets []v1.Secret) []map[string]string {
+	results := []map[string]string{}
+
+	for _, secret := range secrets {
+		log.Printf("processing secret: %v", secret)
+
+		// Retrieve the current config as an object
+		clientConfig := UPSClientConfig{}
+		json.Unmarshal(secret.Data["config"], &clientConfig)
+
+		if clientConfig.Android != nil {
+			androidConfig := *clientConfig.Android
+			results = append(results, map[string]string{
+				"variantId":        androidConfig["variantId"],
+				"servicebindingId": secret.ObjectMeta.Annotations["binding/android"],
+			})
+		}
+
+		if clientConfig.IOS != nil {
+			iOSConfig := *clientConfig.IOS
+			results = append(results, map[string]string{
+				"variantId":        iOSConfig["variantId"],
+				"servicebindingId": secret.ObjectMeta.Annotations["binding/ios"],
+			})
+		}
+	}
+
+	return results
+}
+
+func getUPSSecrets() ([]v1.Secret, error) {
+	selector := fmt.Sprintf("serviceName=ups,pushApplicationId=%s", pushClient.config.ApplicationId)
+	filter := metav1.ListOptions{LabelSelector: selector}
+	secretsList, error := k8client.CoreV1().Secrets(os.Getenv(NamespaceKey)).List(filter)
+	return secretsList.Items, error
+}
+
+func compareUPSVariantsWithVariantsFromSecrets() {
+
+	if pushClient == nil {
+		pushClient = pushClientOrDie()
+	}
+
+	secrets, err := getUPSSecrets()
+
+	// then process these into a list of variants
+	clientConfigs := getUPSClientConfigsFromSecrets(secrets)
+	log.Printf("Processed variants from secret list %v", clientConfigs)
+
+	if err != nil {
+		log.Printf("Error searching for ups secrets: %v", err.Error())
+		return
+	}
+
+	UPSVariants, err := pushClient.getVariants()
+
+	if err != nil {
+		log.Printf("An error occurred trying to get variants from UPS service: %v", err.Error())
+		return
+	}
+
+	log.Printf("got variants from UPS: %v", UPSVariants)
+
+	for _, config := range clientConfigs {
+		variantId := config["variantId"]
+		found := false
+		for _, variant := range UPSVariants {
+			if variant.VariantID == variantId {
+				found = true
+			}
+		}
+		if !found {
+			fmt.Println("variant Id %v found in client configs but not found in UPS. Should delete", variantId)
+		}
+	}
+}
+
+func startPollingUPS() {
+	interval := UPSPollingInterval * time.Second
+	for {
+		<-time.After(interval)
+		log.Println("Should Poll UPS now")
+		compareUPSVariantsWithVariantsFromSecrets()
+	}
+}
+
 func main() {
 	rand.Seed(time.Now().Unix())
 
@@ -505,7 +595,6 @@ func main() {
 
 	log.Print("Entering watch loop")
 
-	for {
-		watchLoop()
-	}
+	go startPollingUPS()
+	enterWatchLoop()
 }
