@@ -20,10 +20,10 @@ import (
 	"strings"
 	"time"
 
-	"k8s.io/client-go/pkg/api/v1"
-	sc "github.com/aerogear/ups-config-operator/pkg/client/servicecatalog/clientset/versioned"
 	mc "github.com/aerogear/ups-config-operator/pkg/client/mobile/clientset/versioned"
+	sc "github.com/aerogear/ups-config-operator/pkg/client/servicecatalog/clientset/versioned"
 	"github.com/pkg/errors"
+	"k8s.io/client-go/pkg/api/v1"
 )
 
 var mobileclient *mc.Clientset
@@ -197,11 +197,8 @@ func getServiceBindingNameByID(bindingId string) (string, error) {
 	return "", errors.New(fmt.Sprintf("Can't find a binding with ExternalID %s", bindingId))
 }
 
-func deleteServiceBinding(bindingName string) {
-	err := scclient.ServicecatalogV1beta1().ServiceBindings(os.Getenv(NamespaceKey)).Delete(bindingName, nil)
-	if err != nil {
-		log.Printf("Error deleting service binding instance %s", bindingName)
-	}
+func deleteServiceBinding(bindingName string) error {
+	return scclient.ServicecatalogV1beta1().ServiceBindings(os.Getenv(NamespaceKey)).Delete(bindingName, nil)
 }
 
 // Find a mobile client bound ups config secret
@@ -229,9 +226,9 @@ func findMobileClientConfig(clientId string) *v1.Secret {
 // Creates the JSON string for the mobile-client variant annotation
 func generateVariantAnnotationValue(url string, appType string) ([]byte, error) {
 	annotation := VariantAnnotation{
-		 Type: "href",
-		 Label: fmt.Sprintf("UPS %s Variant", appType),
-		 Value: url,
+		Type:  "href",
+		Label: fmt.Sprintf("UPS %s Variant", appType),
+		Value: url,
 	}
 
 	return json.Marshal(annotation)
@@ -303,7 +300,7 @@ func createClientConfigSecret(clientId string, serviceInstanceName string) *v1.S
 		Data: map[string][]byte{
 			// Used to generate the name of the UI annotations
 			ServiceInstanceNameKey: []byte(serviceInstanceName),
-			"config": []byte(fmt.Sprintf("{\"pushServerUrl\":\"%s\"}", pushClient.baseUrl)),
+			"config":               []byte(fmt.Sprintf("{\"pushServerUrl\":\"%s\"}", pushClient.baseUrl)),
 		},
 	}
 
@@ -534,6 +531,15 @@ func getUPSSecrets() ([]v1.Secret, error) {
 	return secretsList.Items, error
 }
 
+func handleDeleteServiceBinding(servicebindingId string) error {
+	serviceBindingName, err := getServiceBindingNameByID(config["servicebindingId"])
+	if err != nil {
+		return err
+	}
+	err = deleteServiceBinding(serviceBindingName)
+	return err
+}
+
 func compareUPSVariantsWithVariantsFromSecrets() {
 
 	if pushClient == nil {
@@ -544,7 +550,6 @@ func compareUPSVariantsWithVariantsFromSecrets() {
 
 	// then process these into a list of variants
 	clientConfigs := getUPSClientConfigsFromSecrets(secrets)
-	log.Printf("Processed variants from secret list %v", clientConfigs)
 
 	if err != nil {
 		log.Printf("Error searching for ups secrets: %v", err.Error())
@@ -558,8 +563,6 @@ func compareUPSVariantsWithVariantsFromSecrets() {
 		return
 	}
 
-	log.Printf("got variants from UPS: %v", UPSVariants)
-
 	for _, config := range clientConfigs {
 		variantId := config["variantId"]
 		found := false
@@ -569,7 +572,11 @@ func compareUPSVariantsWithVariantsFromSecrets() {
 			}
 		}
 		if !found {
-			fmt.Println("variant Id %v found in client configs but not found in UPS. Should delete", variantId)
+			fmt.Printf("variant Id %v found in client configs but not found in UPS. Should delete", variantId)
+			err := handleDeleteServiceBinding(config["servicebindingId"])
+			if err != nil {
+				log.Printf("Error deleting service binding instance with id %s\n%s", config["servicebindingId"], err.Error())
+			}
 		}
 	}
 }
