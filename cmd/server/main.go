@@ -52,7 +52,7 @@ const IOSPassPhrase = "passphrase"
 const IOSIsProduction = "isProduction"
 
 // time in seconds
-const UPSPollingInterval = 5
+const UPSPollingInterval = 10
 
 var letters = []rune("abcdefghijklmnopqrstuvwxyz0123456789")
 
