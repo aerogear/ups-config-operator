@@ -65,6 +65,210 @@ type BindingSecret struct {
 	StringData        map[string]string `json:"stringData,omitempty" protobuf:"bytes,4,rep,name=stringData"`
 }
 
+func main() {
+	rand.Seed(time.Now().Unix())
+
+	config, err := rest.InClusterConfig()
+	if err != nil {
+		panic(err.Error())
+	}
+
+	clientsOrDie(config)
+
+	log.Print("Entering watch loop")
+
+	go startPollingUPS()
+	startWatchLoop()
+}
+
+func startWatchLoop() {
+	events, err := k8client.CoreV1().Secrets(os.Getenv(NamespaceKey)).Watch(metav1.ListOptions{})
+	if err != nil {
+		panic(err.Error())
+	}
+
+	for update := range events.ResultChan() {
+		switch action := update.Type; action {
+		case ActionAdded:
+			handleAddSecret(update.Object)
+		case ActionDeleted:
+			handleDeleteSecret(update.Object)
+		default:
+			log.Print("Unhandled action:", action)
+		}
+	}
+}
+
+func handleAddSecret(obj runtime.Object) {
+	raw, _ := json.Marshal(obj)
+	var secret = BindingSecret{}
+	json.Unmarshal(raw, &secret)
+	if val, ok := secret.Labels[SecretTypeKey]; ok && val == BindingSecretType {
+		appType := string(secret.Data[BindingAppType])
+		log.Printf("A mobile binding secret of type `%s` was added", appType)
+
+		if appType == "Android" {
+			handleAndroidVariant(&secret)
+		} else if appType == "IOS" {
+			handleIOSVariant(&secret)
+		}
+		// Always delete the secret after handling it regardless of any new resources
+		// was created
+		deleteSecret(secret.Name)
+	}
+}
+
+func handleDeleteSecret(obj runtime.Object) {
+	raw, _ := json.Marshal(obj)
+	var secret = BindingSecret{}
+	json.Unmarshal(raw, &secret)
+
+	for _, ref := range secret.ObjectMeta.OwnerReferences {
+		if ref.Kind == "ServiceBinding" {
+			handleDeleteVariant(&secret)
+			break
+		}
+	}
+}
+
+// startPollingUPS() is a loop that calls comparseUPSVariantsWithClientConfigs() in intervals
+func startPollingUPS() {
+	interval := UPSPollingInterval * time.Second
+	for {
+		<-time.After(interval)
+		compareUPSVariantsWithClientConfigs()
+	}
+}
+
+// compareUPSVariantsWithClientConfigs() compares the UPS client configs stored in k8's secrets
+// against the variants in UPS in order to detect if a variant has been deleted in UPS
+// If a client config is found that references a variant not found in UPS then we clean up the client config by deleting the associated servicebinding.
+func compareUPSVariantsWithClientConfigs() {
+
+	err := initPushClient()
+
+	if err != nil {
+		log.Printf("error initialising UPS client: %s", err.Error())
+		return
+	}
+
+	// get the UPS related secrets
+	secrets, err := getUPSSecrets()
+
+	if err != nil {
+		log.Printf("Error searching for ups secrets: %v", err.Error())
+		return
+	}
+
+	// process the secrets into a list of VariantServiceBindingMappings
+	// each element has VariantId and ServiceBindingId
+	clientConfigs := getUPSVariantServiceBindingMappings(secrets)
+
+	// Get all variants from UPS
+	UPSVariants, err := pushClient.getVariants()
+
+	if err != nil {
+		log.Printf("An error occurred trying to get variants from UPS service: %v", err.Error())
+		return
+	}
+
+	for _, clientConfig := range clientConfigs {
+		found := false
+
+		for _, variant := range UPSVariants {
+			if variant.VariantID == clientConfig.VariantId {
+				found = true
+			}
+		}
+
+		if !found {
+			fmt.Printf("variant Id %v found in client configs but not found in UPS. Should delete", clientConfig.VariantId)
+			err := handleDeleteServiceBinding(clientConfig.ServiceBindingId)
+			if err != nil {
+				log.Printf("Error deleting service binding instance with id %s\n%s", clientConfig.ServiceBindingId, err.Error())
+			}
+		}
+	}
+}
+
+// getUPSSecrets() returns a list of the secrets that contain the UPS client configs
+func getUPSSecrets() ([]v1.Secret, error) {
+	selector := fmt.Sprintf("serviceName=ups,pushApplicationId=%s", pushClient.config.ApplicationId)
+	filter := metav1.ListOptions{LabelSelector: selector}
+	secretsList, error := k8client.CoreV1().Secrets(os.Getenv(NamespaceKey)).List(filter)
+	return secretsList.Items, error
+}
+
+// getUPSVariantServiceBindingMappings() takes the list of secrets and returns a list of VariantServiceBindingMappings
+func getUPSVariantServiceBindingMappings(secrets []v1.Secret) []VariantServiceBindingMapping {
+
+	results := []VariantServiceBindingMapping{}
+
+	buildAndAppendResult := func(results []VariantServiceBindingMapping, variantId string, serviceBindingId string, secret v1.Secret) []VariantServiceBindingMapping {
+		if variantServiceBindingMapping, err := GetClientConfigRepresentation(variantId, serviceBindingId); err != nil {
+			log.Printf("invalid android UPS client config found in secret %s reason: %s", secret.Name, err.Error())
+			return results
+		} else {
+			return append(results, variantServiceBindingMapping)
+		}
+	}
+
+	for _, secret := range secrets {
+
+		// Retrieve the current config as an object
+		clientConfig := UPSClientConfig{}
+		json.Unmarshal(secret.Data["config"], &clientConfig)
+
+		if clientConfig.Android != nil {
+			androidConfig := *clientConfig.Android
+			variantId := androidConfig["variantId"]
+			serviceBindingId := secret.ObjectMeta.Annotations["binding/android"]
+			results = buildAndAppendResult(results, variantId, serviceBindingId, secret)
+		}
+
+		if clientConfig.IOS != nil {
+			iOSConfig := *clientConfig.IOS
+			variantId := iOSConfig["variantId"]
+			serviceBindingId := secret.ObjectMeta.Annotations["binding/ios"]
+			results = buildAndAppendResult(results, variantId, serviceBindingId, secret)
+		}
+	}
+	return results
+}
+
+func handleDeleteServiceBinding(servicebindingId string) error {
+	serviceBindingName, err := getServiceBindingNameByID(servicebindingId)
+	if err != nil {
+		return err
+	}
+	err = deleteServiceBinding(serviceBindingName)
+	return err
+}
+
+// Find a service binding by its ExternalID
+func getServiceBindingNameByID(bindingId string) (string, error) {
+	// Get a list of all service bindings in the namespace and find the one with a matching ExternalID
+	// This is not very efficient and could be improved with a jsonpath query but it looks like client-go
+	// does not support jsonpath or at least I could not find any examples.
+	bindings, err := scclient.ServicecatalogV1beta1().ServiceBindings(os.Getenv(NamespaceKey)).List(metav1.ListOptions{})
+	if err != nil {
+		return "", errors.New("Error listing service bindings")
+	}
+
+	for _, binding := range bindings.Items {
+		log.Printf("Checking service binding %s", binding.Name)
+		if binding.Spec.ExternalID == bindingId {
+			return binding.Name, nil
+		}
+	}
+
+	return "", errors.New(fmt.Sprintf("Can't find a binding with ExternalID %s", bindingId))
+}
+
+func deleteServiceBinding(bindingName string) error {
+	return scclient.ServicecatalogV1beta1().ServiceBindings(os.Getenv(NamespaceKey)).Delete(bindingName, nil)
+}
+
 // Create a random identifier of the given length. Useful for randomized resource names
 func getRandomIdentifier(length int) string {
 	result := make([]rune, length)
@@ -87,10 +291,12 @@ func deleteSecret(name string) {
 }
 
 func handleAndroidVariant(secret *BindingSecret) {
-	// Only instantiate the push client here because we need to wait for the ups secret to
-	// be available
-	if pushClient == nil {
-		pushClient = pushClientOrDie()
+
+	err := initPushClient()
+
+	if err != nil {
+		log.Printf("error initialising UPS client: %s", err.Error())
+		return
 	}
 
 	clientId := string(secret.Data[BindingClientId])
@@ -124,10 +330,12 @@ func handleAndroidVariant(secret *BindingSecret) {
 }
 
 func handleIOSVariant(secret *BindingSecret) {
-	// Only instantiate the push client here because we need to wait for the ups secret to
-	// be available
-	if pushClient == nil {
-		pushClient = pushClientOrDie()
+
+	err := initPushClient()
+
+	if err != nil {
+		log.Printf("error initialising UPS client: %s", err.Error())
+		return
 	}
 
 	clientId := string(secret.Data[BindingClientId])
@@ -175,30 +383,6 @@ func handleDeleteVariant(secret *BindingSecret) {
 			log.Printf("UPS reported an error when deleting variant %s", variantId)
 		}
 	}
-}
-
-// Find a service binding by its ExternalID
-func getServiceBindingNameByID(bindingId string) (string, error) {
-	// Get a list of all service bindings in the namespace and find the one with a matching ExternalID
-	// This is not very efficient and could be improved with a jsonpath query but it looks like client-go
-	// does not support jsonpath or at least I could not find any examples.
-	bindings, err := scclient.ServicecatalogV1beta1().ServiceBindings(os.Getenv(NamespaceKey)).List(metav1.ListOptions{})
-	if err != nil {
-		return "", errors.New("Error listing service bindings")
-	}
-
-	for _, binding := range bindings.Items {
-		log.Printf("Checking service binding %s", binding.Name)
-		if binding.Spec.ExternalID == bindingId {
-			return binding.Name, nil
-		}
-	}
-
-	return "", errors.New(fmt.Sprintf("Can't find a binding with ExternalID %s", bindingId))
-}
-
-func deleteServiceBinding(bindingName string) error {
-	return scclient.ServicecatalogV1beta1().ServiceBindings(os.Getenv(NamespaceKey)).Delete(bindingName, nil)
 }
 
 // Find a mobile client bound ups config secret
@@ -420,188 +604,33 @@ func updateConfiguration(appType string, clientId string, variantId string, newC
 	log.Printf("%s configuration of %s has been updated", appType, clientId)
 }
 
-func handleAddSecret(obj runtime.Object) {
-	raw, _ := json.Marshal(obj)
-	var secret = BindingSecret{}
-	json.Unmarshal(raw, &secret)
-	if val, ok := secret.Labels[SecretTypeKey]; ok && val == BindingSecretType {
-		appType := string(secret.Data[BindingAppType])
-		log.Printf("A mobile binding secret of type `%s` was added", appType)
-
-		if appType == "Android" {
-			handleAndroidVariant(&secret)
-		} else if appType == "IOS" {
-			handleIOSVariant(&secret)
-		}
-		// Always delete the secret after handling it regardless of any new resources
-		// was created
-		deleteSecret(secret.Name)
-	}
-}
-
-func handleDeleteSecret(obj runtime.Object) {
-	raw, _ := json.Marshal(obj)
-	var secret = BindingSecret{}
-	json.Unmarshal(raw, &secret)
-
-	for _, ref := range secret.ObjectMeta.OwnerReferences {
-		if ref.Kind == "ServiceBinding" {
-			handleDeleteVariant(&secret)
-			break
-		}
-	}
-}
-
-func enterWatchLoop() {
-	events, err := k8client.CoreV1().Secrets(os.Getenv(NamespaceKey)).Watch(metav1.ListOptions{})
-	if err != nil {
-		panic(err.Error())
-	}
-
-	for update := range events.ResultChan() {
-		switch action := update.Type; action {
-		case ActionAdded:
-			handleAddSecret(update.Object)
-		case ActionDeleted:
-			handleDeleteSecret(update.Object)
-		default:
-			log.Print("Unhandled action:", action)
-		}
-	}
-}
-
 func clientsOrDie(config *rest.Config) {
 	k8client = kubernetes.NewForConfigOrDie(config)
 	scclient = sc.NewForConfigOrDie(config)
 	mobileclient = mc.NewForConfigOrDie(config)
 }
 
-func pushClientOrDie() *upsClient {
+func initPushClient() error {
+	if pushClient != nil {
+		return nil
+	}
+
 	upsSecret, err := k8client.CoreV1().Secrets(os.Getenv(NamespaceKey)).Get(UpsSecretName, metav1.GetOptions{})
+
 	if err != nil {
-		panic(err.Error())
+		return err
 	}
 
 	upsBaseURL := string(upsSecret.Data[UpsURI])
 	serviceInstanceId := upsSecret.Labels[ServiceInstanceIdKey]
 
-	return &upsClient{
+	pushClient = &upsClient{
 		config: &pushApplication{
 			ApplicationId: string(upsSecret.Data["applicationId"]),
 		},
 		serviceInstanceId: serviceInstanceId,
 		baseUrl:           upsBaseURL,
 	}
-}
 
-func getUPSClientConfigsFromSecrets(secrets []v1.Secret) []map[string]string {
-	results := []map[string]string{}
-
-	for _, secret := range secrets {
-		log.Printf("processing secret: %v", secret)
-
-		// Retrieve the current config as an object
-		clientConfig := UPSClientConfig{}
-		json.Unmarshal(secret.Data["config"], &clientConfig)
-
-		if clientConfig.Android != nil {
-			androidConfig := *clientConfig.Android
-			results = append(results, map[string]string{
-				"variantId":        androidConfig["variantId"],
-				"servicebindingId": secret.ObjectMeta.Annotations["binding/android"],
-			})
-		}
-
-		if clientConfig.IOS != nil {
-			iOSConfig := *clientConfig.IOS
-			results = append(results, map[string]string{
-				"variantId":        iOSConfig["variantId"],
-				"servicebindingId": secret.ObjectMeta.Annotations["binding/ios"],
-			})
-		}
-	}
-
-	return results
-}
-
-func getUPSSecrets() ([]v1.Secret, error) {
-	selector := fmt.Sprintf("serviceName=ups,pushApplicationId=%s", pushClient.config.ApplicationId)
-	filter := metav1.ListOptions{LabelSelector: selector}
-	secretsList, error := k8client.CoreV1().Secrets(os.Getenv(NamespaceKey)).List(filter)
-	return secretsList.Items, error
-}
-
-func handleDeleteServiceBinding(servicebindingId string) error {
-	serviceBindingName, err := getServiceBindingNameByID(servicebindingId)
-	if err != nil {
-		return err
-	}
-	err = deleteServiceBinding(serviceBindingName)
-	return err
-}
-
-func compareUPSVariantsWithVariantsFromSecrets() {
-
-	if pushClient == nil {
-		pushClient = pushClientOrDie()
-	}
-
-	secrets, err := getUPSSecrets()
-
-	// then process these into a list of variants
-	clientConfigs := getUPSClientConfigsFromSecrets(secrets)
-
-	if err != nil {
-		log.Printf("Error searching for ups secrets: %v", err.Error())
-		return
-	}
-
-	UPSVariants, err := pushClient.getVariants()
-
-	if err != nil {
-		log.Printf("An error occurred trying to get variants from UPS service: %v", err.Error())
-		return
-	}
-
-	for _, config := range clientConfigs {
-		variantId := config["variantId"]
-		found := false
-		for _, variant := range UPSVariants {
-			if variant.VariantID == variantId {
-				found = true
-			}
-		}
-		if !found {
-			fmt.Printf("variant Id %v found in client configs but not found in UPS. Should delete", variantId)
-			err := handleDeleteServiceBinding(config["servicebindingId"])
-			if err != nil {
-				log.Printf("Error deleting service binding instance with id %s\n%s", config["servicebindingId"], err.Error())
-			}
-		}
-	}
-}
-
-func startPollingUPS() {
-	interval := UPSPollingInterval * time.Second
-	for {
-		<-time.After(interval)
-		log.Println("Should Poll UPS now")
-		compareUPSVariantsWithVariantsFromSecrets()
-	}
-}
-
-func main() {
-	rand.Seed(time.Now().Unix())
-
-	config, err := rest.InClusterConfig()
-	if err != nil {
-		panic(err.Error())
-	}
-
-	clientsOrDie(config)
-
-	log.Print("Entering watch loop")
-
-	go startPollingUPS()
-	enterWatchLoop()
+	return nil
 }

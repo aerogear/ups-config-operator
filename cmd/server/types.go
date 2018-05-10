@@ -3,6 +3,8 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+
+	"github.com/pkg/errors"
 )
 
 type variant struct {
@@ -66,4 +68,26 @@ type UPSClientConfig struct {
 	Android       *map[string]string `json:"android,omitempty"`
 	IOS           *map[string]string `json:"ios,omitempty"`
 	PushServerURL string             `json:"pushServerUrl,omitempty"`
+}
+
+type VariantServiceBindingMapping struct {
+	VariantId        string
+	ServiceBindingId string
+}
+
+func GetClientConfigRepresentation(variantId, serviceBindingId string) (VariantServiceBindingMapping, error) {
+	config := VariantServiceBindingMapping{
+		VariantId:        variantId,
+		ServiceBindingId: serviceBindingId,
+	}
+	return config, config.Validate()
+}
+
+func (configRepresentation *VariantServiceBindingMapping) Validate() error {
+	if configRepresentation.VariantId == "" {
+		return errors.New("missing variantId")
+	} else if configRepresentation.ServiceBindingId == "" {
+		return errors.New("missing serviceBindingId")
+	}
+	return nil
 }
