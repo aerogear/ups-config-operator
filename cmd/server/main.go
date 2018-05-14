@@ -178,6 +178,7 @@ func compareUPSVariantsWithClientConfigs() {
 		for _, variant := range UPSVariants {
 			if variant.VariantID == clientConfig.VariantId {
 				found = true
+				break
 			}
 		}
 
@@ -252,7 +253,7 @@ func getServiceBindingNameByID(bindingId string) (string, error) {
 	// does not support jsonpath or at least I could not find any examples.
 	bindings, err := scclient.ServicecatalogV1beta1().ServiceBindings(os.Getenv(NamespaceKey)).List(metav1.ListOptions{})
 	if err != nil {
-		return "", errors.New("Error listing service bindings")
+		return "", err
 	}
 
 	for _, binding := range bindings.Items {
