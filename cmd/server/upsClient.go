@@ -2,28 +2,28 @@ package main
 
 import (
 	"bytes"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"log"
-	"net/http"
 	"mime/multipart"
-	"encoding/base64"
+	"net/http"
 )
 
 type upsClient struct {
-	config *pushApplication
+	config            *pushApplication
 	serviceInstanceId string
-	baseUrl string
+	baseUrl           string
 }
 
 const BaseUrl = "http://localhost:8080/rest/applications"
 
-func (client *upsClient) deleteVariant(platform string , variantId string) bool {
+func (client *upsClient) deleteVariant(platform string, variantId string) bool {
 	variant := client.hasVariant(platform, variantId)
 
 	if variant != nil {
-		log.Printf("Deleting %s variant with id `%s`", platform,  variant.VariantID)
+		log.Printf("Deleting %s variant with id `%s`", platform, variant.VariantID)
 
 		url := fmt.Sprintf("%s/%s/%s/%s", BaseUrl, client.config.ApplicationId,
 			platform, variant.VariantID)
@@ -47,12 +47,10 @@ func (client *upsClient) deleteVariant(platform string , variantId string) bool 
 	return false
 }
 
-// Find a Variant by it's variant id
+// Find a Variant by its variant id
 func (client *upsClient) hasVariant(platform string, variantId string) *variant {
-	url := fmt.Sprintf("%s/%s/%s", BaseUrl, client.config.ApplicationId, platform)
-	log.Printf("UPS request", url)
+	variants, err := client.getVariantsForPlatform(platform)
 
-	resp, err := http.Get(url)
 	if err != nil {
 		log.Fatal(err)
 
@@ -60,11 +58,6 @@ func (client *upsClient) hasVariant(platform string, variantId string) *variant 
 		// request fails
 		return &variant{}
 	}
-
-	defer resp.Body.Close()
-	body, _ := ioutil.ReadAll(resp.Body)
-	variants := make([]variant, 0)
-	json.Unmarshal(body, &variants)
 
 	for _, variant := range variants {
 		if variant.VariantID == variantId {
@@ -75,13 +68,10 @@ func (client *upsClient) hasVariant(platform string, variantId string) *variant 
 	return nil
 }
 
-
-// Find an Android Variant by it's Google Key
+// Find an Android Variant by its Google Key
 func (client *upsClient) hasAndroidVariant(key string) *androidVariant {
-	url := fmt.Sprintf("%s/%s/android", BaseUrl, client.config.ApplicationId)
-	log.Printf("UPS request", url)
+	variants, err := client.getAndroidVariants()
 
-	resp, err := http.Get(url)
 	if err != nil {
 		log.Fatal(err)
 
@@ -89,11 +79,6 @@ func (client *upsClient) hasAndroidVariant(key string) *androidVariant {
 		// request fails
 		return &androidVariant{}
 	}
-
-	defer resp.Body.Close()
-	body, _ := ioutil.ReadAll(resp.Body)
-	variants := make([]androidVariant, 0)
-	json.Unmarshal(body, &variants)
 
 	for _, variant := range variants {
 		if variant.GoogleKey == key {
@@ -144,10 +129,10 @@ func (client *upsClient) createIOSVariant(variant *iOSVariant) (bool, *iOSVarian
 		production = "false"
 	}
 
-	params :=  map[string]string{
-		"name": variant.Name,
-		"passphrase": variant.Passphrase,
-		"production" : production,
+	params := map[string]string{
+		"name":        variant.Name,
+		"passphrase":  variant.Passphrase,
+		"production":  production,
 		"description": variant.Description,
 	}
 
@@ -156,7 +141,7 @@ func (client *upsClient) createIOSVariant(variant *iOSVariant) (bool, *iOSVarian
 	if err != nil {
 		log.Print("Invalid cert - Please check this cert is in base64 encoded format: ", err)
 	}
-	
+
 	body := new(bytes.Buffer)
 	writer := multipart.NewWriter(body)
 	part, err := writer.CreateFormFile("certificate", "certificate")
@@ -188,4 +173,65 @@ func (client *upsClient) createIOSVariant(variant *iOSVariant) (bool, *iOSVarian
 	var createdVariant iOSVariant
 	json.Unmarshal(b, &createdVariant)
 	return resp.StatusCode == 201, &createdVariant
+}
+
+func (client *upsClient) getVariantsForPlatformRaw(platform string) ([]byte, error) {
+	url := fmt.Sprintf("%s/%s/%s", BaseUrl, client.config.ApplicationId, platform)
+	log.Printf("UPS request", url)
+
+	resp, err := http.Get(url)
+	if err != nil {
+		return nil, err
+	}
+
+	defer resp.Body.Close()
+	body, _ := ioutil.ReadAll(resp.Body)
+	return body, nil
+}
+
+func (client *upsClient) getVariantsForPlatform(platform string) ([]variant, error) {
+	variantBytes, err := client.getVariantsForPlatformRaw(platform)
+
+	if err != nil {
+		return nil, err
+	}
+
+	variants := make([]variant, 0)
+	json.Unmarshal(variantBytes, &variants)
+
+	return variants, nil
+}
+
+func (client *upsClient) getAndroidVariants() ([]androidVariant, error) {
+	variantsBytes, err := client.getVariantsForPlatformRaw("android")
+	if err != nil {
+		return nil, err
+	}
+	androidVariants := make([]androidVariant, 0)
+	json.Unmarshal(variantsBytes, &androidVariants)
+	return androidVariants, nil
+}
+
+func (client *upsClient) getIOSVariants() ([]iOSVariant, error) {
+	variantsBytes, err := client.getVariantsForPlatformRaw("ios")
+	if err != nil {
+		return nil, err
+	}
+	iOSVariants := make([]iOSVariant, 0)
+	json.Unmarshal(variantsBytes, &iOSVariants)
+	return iOSVariants, nil
+}
+
+func (client *upsClient) getVariants() ([]variant, error) {
+
+	UPSIOSVariants, err := client.getVariantsForPlatform("ios")
+	UPSAndroidVariants, err := client.getVariantsForPlatform("android")
+
+	if err != nil {
+		return nil, err
+	}
+
+	variants := append(UPSAndroidVariants, UPSIOSVariants...)
+
+	return variants, nil
 }

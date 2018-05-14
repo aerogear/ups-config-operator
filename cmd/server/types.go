@@ -3,6 +3,8 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+
+	"github.com/pkg/errors"
 )
 
 type variant struct {
@@ -20,8 +22,8 @@ type androidVariant struct {
 
 type iOSVariant struct {
 	Certificate []byte `json:"certificate"`
-	Passphrase string `json:"passphrase"`
-	Production bool `json:"production"`
+	Passphrase  string `json:"passphrase"`
+	Production  bool   `json:"production"`
 	variant
 }
 
@@ -32,13 +34,13 @@ type pushApplication struct {
 type VariantAnnotation struct {
 	Label string `json:"label"`
 	Value string `json:"value"`
-	Type string `json:"type"`
+	Type  string `json:"type"`
 }
 
 func (this *androidVariant) getJson() ([]byte, error) {
 	config := map[string]string{
-		"senderId": this.ProjectNumber,
-		"variantId": this.VariantID,
+		"senderId":      this.ProjectNumber,
+		"variantId":     this.VariantID,
 		"variantSecret": this.Secret,
 	}
 
@@ -51,7 +53,7 @@ func (this *androidVariant) getJson() ([]byte, error) {
 
 func (this *iOSVariant) getJson() ([]byte, error) {
 	config := map[string]string{
-		"variantId": this.VariantID,
+		"variantId":     this.VariantID,
 		"variantSecret": this.Secret,
 	}
 
@@ -60,4 +62,32 @@ func (this *iOSVariant) getJson() ([]byte, error) {
 	encoder.SetEscapeHTML(false)
 	err := encoder.Encode(config)
 	return buffer.Bytes(), err
+}
+
+type UPSClientConfig struct {
+	Android       *map[string]string `json:"android,omitempty"`
+	IOS           *map[string]string `json:"ios,omitempty"`
+	PushServerURL string             `json:"pushServerUrl,omitempty"`
+}
+
+type VariantServiceBindingMapping struct {
+	VariantId        string
+	ServiceBindingId string
+}
+
+func GetClientConfigRepresentation(variantId, serviceBindingId string) (VariantServiceBindingMapping, error) {
+	config := VariantServiceBindingMapping{
+		VariantId:        variantId,
+		ServiceBindingId: serviceBindingId,
+	}
+	return config, config.Validate()
+}
+
+func (configRepresentation *VariantServiceBindingMapping) Validate() error {
+	if configRepresentation.VariantId == "" {
+		return errors.New("missing variantId")
+	} else if configRepresentation.ServiceBindingId == "" {
+		return errors.New("missing serviceBindingId")
+	}
+	return nil
 }
