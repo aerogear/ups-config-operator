@@ -20,8 +20,8 @@ import (
 	"strings"
 	"time"
 
-	mc "github.com/aerogear/ups-config-operator/pkg/client/mobile/clientset/versioned"
-	sc "github.com/aerogear/ups-config-operator/pkg/client/servicecatalog/clientset/versioned"
+	mc "github.com/aerogear/mobile-crd-client/pkg/client/mobile/clientset/versioned"
+	sc "github.com/aerogear/mobile-crd-client/pkg/client/servicecatalog/clientset/versioned"
 	"github.com/pkg/errors"
 	"k8s.io/client-go/pkg/api/v1"
 )
