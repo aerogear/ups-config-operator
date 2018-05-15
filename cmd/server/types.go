@@ -67,7 +67,6 @@ func (this *iOSVariant) getJson() ([]byte, error) {
 type UPSClientConfig struct {
 	Android       *map[string]string `json:"android,omitempty"`
 	IOS           *map[string]string `json:"ios,omitempty"`
-	PushServerURL string             `json:"pushServerUrl,omitempty"`
 }
 
 type VariantServiceBindingMapping struct {

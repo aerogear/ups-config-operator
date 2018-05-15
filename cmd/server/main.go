@@ -196,14 +196,14 @@ func compareUPSVariantsWithClientConfigs() {
 func getUPSSecrets() ([]v1.Secret, error) {
 	selector := fmt.Sprintf("serviceName=ups,pushApplicationId=%s", pushClient.config.ApplicationId)
 	filter := metav1.ListOptions{LabelSelector: selector}
-	secretsList, error := k8client.CoreV1().Secrets(os.Getenv(NamespaceKey)).List(filter)
-	return secretsList.Items, error
+	secretsList, err := k8client.CoreV1().Secrets(os.Getenv(NamespaceKey)).List(filter)
+	return secretsList.Items, err
 }
 
 // getUPSVariantServiceBindingMappings() takes the list of secrets and returns a list of VariantServiceBindingMappings
 func getUPSVariantServiceBindingMappings(secrets []v1.Secret) []VariantServiceBindingMapping {
 
-	results := []VariantServiceBindingMapping{}
+	var results []VariantServiceBindingMapping
 
 	buildAndAppendResult := func(results []VariantServiceBindingMapping, variantId string, serviceBindingId string, secret v1.Secret) []VariantServiceBindingMapping {
 		if variantServiceBindingMapping, err := GetClientConfigRepresentation(variantId, serviceBindingId); err != nil {
@@ -485,7 +485,7 @@ func createClientConfigSecret(clientId string, serviceInstanceName string) *v1.S
 		Data: map[string][]byte{
 			// Used to generate the name of the UI annotations
 			ServiceInstanceNameKey: []byte(serviceInstanceName),
-			"config":               []byte(fmt.Sprintf("{\"pushServerUrl\":\"%s\"}", pushClient.baseUrl)),
+			"config":               []byte("{}"),
 		},
 	}
 
@@ -526,8 +526,8 @@ func removeConfigFromClientSecret(secret *BindingSecret, appType string) (bool, 
 	variantId := getVariantIdFromConfig(string(currentConfig[appType]))
 
 	// If there is only one platform in the configuration we can remove the whole
-	// secret (2 because there is another key for the server url)
-	if len(currentConfig) == 2 {
+	// secret
+	if len(currentConfig) == 1 {
 		deleteSecret(configSecret.Name)
 		return true, variantId
 	} else {
