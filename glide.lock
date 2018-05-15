@@ -1,11 +1,17 @@
-hash: 057959ab0bc4731835fc1d1c3a8d4a7ae66a48efdcb65c42d62e6615cdd16b9f
-updated: 2018-03-13T16:43:19.148376Z
+hash: 0208f33376d626e7dae35d7fab66c46a1308b8174f757f5a16feb3f4f14b615e
+updated: 2018-05-14T15:31:14.766614+01:00
 imports:
-- name: github.com/aerogear/mobile-cli
-  version: d9f13a9e967a2a8f59a0246ab51b9b158705d1c3
+- name: github.com/aerogear/mobile-crd-client
+  version: 8ea4fe5f0a4cefe1e2c50c9fe6fa5db1d7e38340
   subpackages:
-  - pkg/apis/mobile
   - pkg/apis/mobile/v1alpha1
+  - pkg/apis/servicecatalog/v1beta1
+  - pkg/client/mobile/clientset/versioned
+  - pkg/client/mobile/clientset/versioned/scheme
+  - pkg/client/mobile/clientset/versioned/typed/mobile/v1alpha1
+  - pkg/client/servicecatalog/clientset/versioned
+  - pkg/client/servicecatalog/clientset/versioned/scheme
+  - pkg/client/servicecatalog/clientset/versioned/typed/servicecatalog/v1beta1
 - name: github.com/davecgh/go-spew
   version: 5215b55f46b2b919f50a1df0eaa5886afe4e3b3d
   subpackages:
@@ -79,8 +85,6 @@ imports:
 - name: golang.org/x/net
   version: f2499483f923065a842d38eb4c7f1927e6fc6e6d
   subpackages:
-  - context
-  - context/ctxhttp
   - http2
   - http2/hpack
   - idna
@@ -155,8 +159,29 @@ imports:
   - discovery/fake
   - kubernetes
   - kubernetes/scheme
+  - kubernetes/typed/admissionregistration/v1alpha1
+  - kubernetes/typed/apps/v1beta1
+  - kubernetes/typed/authentication/v1
+  - kubernetes/typed/authentication/v1beta1
+  - kubernetes/typed/authorization/v1
+  - kubernetes/typed/authorization/v1beta1
+  - kubernetes/typed/autoscaling/v1
+  - kubernetes/typed/autoscaling/v2alpha1
+  - kubernetes/typed/batch/v1
+  - kubernetes/typed/batch/v2alpha1
+  - kubernetes/typed/certificates/v1beta1
+  - kubernetes/typed/core/v1
+  - kubernetes/typed/extensions/v1beta1
+  - kubernetes/typed/networking/v1
+  - kubernetes/typed/policy/v1beta1
+  - kubernetes/typed/rbac/v1alpha1
+  - kubernetes/typed/rbac/v1beta1
+  - kubernetes/typed/settings/v1alpha1
+  - kubernetes/typed/storage/v1
+  - kubernetes/typed/storage/v1beta1
   - pkg/api
   - pkg/api/v1
+  - pkg/api/v1/ref
   - pkg/apis/admissionregistration
   - pkg/apis/admissionregistration/v1alpha1
   - pkg/apis/apps
