@@ -585,7 +585,7 @@ func updateConfiguration(appType string, clientId string, variantId string, newC
 	configSecret.Data["uri"] = []byte(pushClient.baseUrl)
 	configSecret.Data["config"] = currentConfigString
 	configSecret.Data["name"] = []byte("ups")
-	configSecret.Data["type"] = []byte("AeroGear Unifiedpush Server")
+	configSecret.Data["type"] = []byte("push")
 
 	// Add the binding annotation to the UPS secret: this is done to link the actual ServiceBinding
 	// Instance back to this secret. In case the variant is deleted in UPS we can use this ID to delete
