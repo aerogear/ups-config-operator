@@ -1,33 +1,44 @@
-package main
+package configOperator
 
 import (
 	"bytes"
 	"encoding/json"
 
 	"github.com/pkg/errors"
+
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-type variant struct {
+// This is required because importing core/v1/Secret leads to a double import and redefinition
+// of log_dir
+type BindingSecret struct {
+	metav1.TypeMeta              `json:",inline"`
+	metav1.ObjectMeta            `json:"metadata,omitempty" protobuf:"bytes,1,opt,name=metadata"`
+	Data       map[string][]byte `json:"data,omitempty" protobuf:"bytes,2,rep,name=data"`
+	StringData map[string]string `json:"stringData,omitempty" protobuf:"bytes,4,rep,name=stringData"`
+}
+
+type Variant struct {
 	Name        string `json:"name"`
 	Description string `json:"description"`
 	VariantID   string `json:"variantID"`
 	Secret      string `json:"secret"`
 }
 
-type androidVariant struct {
+type AndroidVariant struct {
 	ProjectNumber string `json:"projectNumber"`
 	GoogleKey     string `json:"googleKey"`
-	variant
+	Variant
 }
 
-type iOSVariant struct {
+type IOSVariant struct {
 	Certificate []byte `json:"certificate"`
 	Passphrase  string `json:"passphrase"`
 	Production  bool   `json:"production"`
-	variant
+	Variant
 }
 
-type pushApplication struct {
+type PushApplication struct {
 	ApplicationId string `json:"applicationId"`
 }
 
@@ -37,7 +48,7 @@ type VariantAnnotation struct {
 	Type  string `json:"type"`
 }
 
-func (this *androidVariant) getJson() ([]byte, error) {
+func (this *AndroidVariant) getJson() ([]byte, error) {
 	config := map[string]string{
 		"senderId":      this.ProjectNumber,
 		"variantId":     this.VariantID,
@@ -51,7 +62,7 @@ func (this *androidVariant) getJson() ([]byte, error) {
 	return buffer.Bytes(), err
 }
 
-func (this *iOSVariant) getJson() ([]byte, error) {
+func (this *IOSVariant) getJson() ([]byte, error) {
 	config := map[string]string{
 		"variantId":     this.VariantID,
 		"variantSecret": this.Secret,
@@ -65,8 +76,8 @@ func (this *iOSVariant) getJson() ([]byte, error) {
 }
 
 type UPSClientConfig struct {
-	Android       *map[string]string `json:"android,omitempty"`
-	IOS           *map[string]string `json:"ios,omitempty"`
+	Android *map[string]string `json:"android,omitempty"`
+	IOS     *map[string]string `json:"ios,omitempty"`
 }
 
 type VariantServiceBindingMapping struct {

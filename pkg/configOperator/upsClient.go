@@ -1,4 +1,4 @@
-package main
+package configOperator
 
 import (
 	"bytes"
@@ -11,15 +11,24 @@ import (
 	"net/http"
 )
 
-type upsClient struct {
-	config            *pushApplication
+type UpsClient struct {
+	config            *PushApplication
 	serviceInstanceId string
 	baseUrl           string
 }
 
+func NewUpsClient(config *PushApplication, serviceInstanceId string, baseUrl string) *UpsClient {
+	client := new(UpsClient)
+
+	client.config = config
+	client.serviceInstanceId = serviceInstanceId
+	client.baseUrl = baseUrl
+	return client
+}
+
 const BaseUrl = "http://localhost:8080/rest/applications"
 
-func (client *upsClient) deleteVariant(platform string, variantId string) bool {
+func (client *UpsClient) deleteVariant(platform string, variantId string) bool {
 	variant := client.hasVariant(platform, variantId)
 
 	if variant != nil {
@@ -48,7 +57,7 @@ func (client *upsClient) deleteVariant(platform string, variantId string) bool {
 }
 
 // Find a Variant by its variant id
-func (client *upsClient) hasVariant(platform string, variantId string) *variant {
+func (client *UpsClient) hasVariant(platform string, variantId string) *Variant {
 	variants, err := client.getVariantsForPlatform(platform)
 
 	if err != nil {
@@ -56,7 +65,7 @@ func (client *upsClient) hasVariant(platform string, variantId string) *variant 
 
 		// Return true here to prevent creating a new variant when the
 		// request fails
-		return &variant{}
+		return &Variant{}
 	}
 
 	for _, variant := range variants {
@@ -69,7 +78,7 @@ func (client *upsClient) hasVariant(platform string, variantId string) *variant 
 }
 
 // Find an Android Variant by its Google Key
-func (client *upsClient) hasAndroidVariant(key string) *androidVariant {
+func (client *UpsClient) hasAndroidVariant(key string) *AndroidVariant {
 	variants, err := client.getAndroidVariants()
 
 	if err != nil {
@@ -77,7 +86,7 @@ func (client *upsClient) hasAndroidVariant(key string) *androidVariant {
 
 		// Return true here to prevent creating a new variant when the
 		// request fails
-		return &androidVariant{}
+		return &AndroidVariant{}
 	}
 
 	for _, variant := range variants {
@@ -89,7 +98,7 @@ func (client *upsClient) hasAndroidVariant(key string) *androidVariant {
 	return nil
 }
 
-func (client *upsClient) createAndroidVariant(variant *androidVariant) (bool, *androidVariant) {
+func (client *UpsClient) createAndroidVariant(variant *AndroidVariant) (bool, *AndroidVariant) {
 	url := fmt.Sprintf("%s/%s/android", BaseUrl, client.config.ApplicationId)
 	log.Printf("UPS request", url)
 
@@ -114,13 +123,13 @@ func (client *upsClient) createAndroidVariant(variant *androidVariant) (bool, *a
 
 	defer resp.Body.Close()
 	body, _ := ioutil.ReadAll(resp.Body)
-	var createdVariant androidVariant
+	var createdVariant AndroidVariant
 	json.Unmarshal(body, &createdVariant)
 
 	return resp.StatusCode == 201, &createdVariant
 }
 
-func (client *upsClient) createIOSVariant(variant *iOSVariant) (bool, *iOSVariant) {
+func (client *UpsClient) createIOSVariant(variant *IOSVariant) (bool, *IOSVariant) {
 	url := fmt.Sprintf("%s/%s/ios", BaseUrl, client.config.ApplicationId)
 	log.Printf("UPS request", url)
 
@@ -170,12 +179,12 @@ func (client *upsClient) createIOSVariant(variant *iOSVariant) (bool, *iOSVarian
 
 	defer resp.Body.Close()
 	b, _ := ioutil.ReadAll(resp.Body)
-	var createdVariant iOSVariant
+	var createdVariant IOSVariant
 	json.Unmarshal(b, &createdVariant)
 	return resp.StatusCode == 201, &createdVariant
 }
 
-func (client *upsClient) getVariantsForPlatformRaw(platform string) ([]byte, error) {
+func (client *UpsClient) getVariantsForPlatformRaw(platform string) ([]byte, error) {
 	url := fmt.Sprintf("%s/%s/%s", BaseUrl, client.config.ApplicationId, platform)
 	log.Printf("UPS request", url)
 
@@ -189,40 +198,40 @@ func (client *upsClient) getVariantsForPlatformRaw(platform string) ([]byte, err
 	return body, nil
 }
 
-func (client *upsClient) getVariantsForPlatform(platform string) ([]variant, error) {
+func (client *UpsClient) getVariantsForPlatform(platform string) ([]Variant, error) {
 	variantBytes, err := client.getVariantsForPlatformRaw(platform)
 
 	if err != nil {
 		return nil, err
 	}
 
-	variants := make([]variant, 0)
+	variants := make([]Variant, 0)
 	json.Unmarshal(variantBytes, &variants)
 
 	return variants, nil
 }
 
-func (client *upsClient) getAndroidVariants() ([]androidVariant, error) {
+func (client *UpsClient) getAndroidVariants() ([]AndroidVariant, error) {
 	variantsBytes, err := client.getVariantsForPlatformRaw("android")
 	if err != nil {
 		return nil, err
 	}
-	androidVariants := make([]androidVariant, 0)
+	androidVariants := make([]AndroidVariant, 0)
 	json.Unmarshal(variantsBytes, &androidVariants)
 	return androidVariants, nil
 }
 
-func (client *upsClient) getIOSVariants() ([]iOSVariant, error) {
+func (client *UpsClient) getIOSVariants() ([]IOSVariant, error) {
 	variantsBytes, err := client.getVariantsForPlatformRaw("ios")
 	if err != nil {
 		return nil, err
 	}
-	iOSVariants := make([]iOSVariant, 0)
+	iOSVariants := make([]IOSVariant, 0)
 	json.Unmarshal(variantsBytes, &iOSVariants)
 	return iOSVariants, nil
 }
 
-func (client *upsClient) getVariants() ([]variant, error) {
+func (client *UpsClient) getVariants() ([]Variant, error) {
 
 	UPSIOSVariants, err := client.getVariantsForPlatform("ios")
 	UPSAndroidVariants, err := client.getVariantsForPlatform("android")
