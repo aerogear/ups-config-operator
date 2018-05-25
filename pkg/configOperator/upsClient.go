@@ -11,24 +11,36 @@ import (
 	"net/http"
 )
 
-type UpsClient struct {
+type UpsClient interface {
+	getVariants() ([]Variant, error)
+	hasAndroidVariant(key string) *AndroidVariant
+	createAndroidVariant(variant *AndroidVariant) (bool, *AndroidVariant)
+	createIOSVariant(variant *IOSVariant) (bool, *IOSVariant)
+	deleteVariant(platform string, variantId string) bool
+	getApplicationId() string
+	getServiceInstanceId() string
+	getBaseUrl() string
+}
+
+type UpsClientImpl struct {
 	config            *PushApplication
 	serviceInstanceId string
 	baseUrl           string
 }
 
-func NewUpsClient(config *PushApplication, serviceInstanceId string, baseUrl string) *UpsClient {
-	client := new(UpsClient)
+func NewUpsClientImpl(config *PushApplication, serviceInstanceId string, baseUrl string) *UpsClientImpl {
+	client := new(UpsClientImpl)
 
 	client.config = config
 	client.serviceInstanceId = serviceInstanceId
 	client.baseUrl = baseUrl
+
 	return client
 }
 
 const BaseUrl = "http://localhost:8080/rest/applications"
 
-func (client *UpsClient) deleteVariant(platform string, variantId string) bool {
+func (client *UpsClientImpl) deleteVariant(platform string, variantId string) bool {
 	variant := client.hasVariant(platform, variantId)
 
 	if variant != nil {
@@ -56,29 +68,8 @@ func (client *UpsClient) deleteVariant(platform string, variantId string) bool {
 	return false
 }
 
-// Find a Variant by its variant id
-func (client *UpsClient) hasVariant(platform string, variantId string) *Variant {
-	variants, err := client.getVariantsForPlatform(platform)
-
-	if err != nil {
-		log.Fatal(err)
-
-		// Return true here to prevent creating a new variant when the
-		// request fails
-		return &Variant{}
-	}
-
-	for _, variant := range variants {
-		if variant.VariantID == variantId {
-			return &variant
-		}
-	}
-
-	return nil
-}
-
 // Find an Android Variant by its Google Key
-func (client *UpsClient) hasAndroidVariant(key string) *AndroidVariant {
+func (client *UpsClientImpl) hasAndroidVariant(key string) *AndroidVariant {
 	variants, err := client.getAndroidVariants()
 
 	if err != nil {
@@ -98,7 +89,7 @@ func (client *UpsClient) hasAndroidVariant(key string) *AndroidVariant {
 	return nil
 }
 
-func (client *UpsClient) createAndroidVariant(variant *AndroidVariant) (bool, *AndroidVariant) {
+func (client *UpsClientImpl) createAndroidVariant(variant *AndroidVariant) (bool, *AndroidVariant) {
 	url := fmt.Sprintf("%s/%s/android", BaseUrl, client.config.ApplicationId)
 	log.Printf("UPS request", url)
 
@@ -129,7 +120,7 @@ func (client *UpsClient) createAndroidVariant(variant *AndroidVariant) (bool, *A
 	return resp.StatusCode == 201, &createdVariant
 }
 
-func (client *UpsClient) createIOSVariant(variant *IOSVariant) (bool, *IOSVariant) {
+func (client *UpsClientImpl) createIOSVariant(variant *IOSVariant) (bool, *IOSVariant) {
 	url := fmt.Sprintf("%s/%s/ios", BaseUrl, client.config.ApplicationId)
 	log.Printf("UPS request", url)
 
@@ -184,21 +175,7 @@ func (client *UpsClient) createIOSVariant(variant *IOSVariant) (bool, *IOSVarian
 	return resp.StatusCode == 201, &createdVariant
 }
 
-func (client *UpsClient) getVariantsForPlatformRaw(platform string) ([]byte, error) {
-	url := fmt.Sprintf("%s/%s/%s", BaseUrl, client.config.ApplicationId, platform)
-	log.Printf("UPS request", url)
-
-	resp, err := http.Get(url)
-	if err != nil {
-		return nil, err
-	}
-
-	defer resp.Body.Close()
-	body, _ := ioutil.ReadAll(resp.Body)
-	return body, nil
-}
-
-func (client *UpsClient) getVariantsForPlatform(platform string) ([]Variant, error) {
+func (client *UpsClientImpl) getVariantsForPlatform(platform string) ([]Variant, error) {
 	variantBytes, err := client.getVariantsForPlatformRaw(platform)
 
 	if err != nil {
@@ -211,27 +188,7 @@ func (client *UpsClient) getVariantsForPlatform(platform string) ([]Variant, err
 	return variants, nil
 }
 
-func (client *UpsClient) getAndroidVariants() ([]AndroidVariant, error) {
-	variantsBytes, err := client.getVariantsForPlatformRaw("android")
-	if err != nil {
-		return nil, err
-	}
-	androidVariants := make([]AndroidVariant, 0)
-	json.Unmarshal(variantsBytes, &androidVariants)
-	return androidVariants, nil
-}
-
-func (client *UpsClient) getIOSVariants() ([]IOSVariant, error) {
-	variantsBytes, err := client.getVariantsForPlatformRaw("ios")
-	if err != nil {
-		return nil, err
-	}
-	iOSVariants := make([]IOSVariant, 0)
-	json.Unmarshal(variantsBytes, &iOSVariants)
-	return iOSVariants, nil
-}
-
-func (client *UpsClient) getVariants() ([]Variant, error) {
+func (client *UpsClientImpl) getVariants() ([]Variant, error) {
 
 	UPSIOSVariants, err := client.getVariantsForPlatform("ios")
 	UPSAndroidVariants, err := client.getVariantsForPlatform("android")
@@ -243,4 +200,63 @@ func (client *UpsClient) getVariants() ([]Variant, error) {
 	variants := append(UPSAndroidVariants, UPSIOSVariants...)
 
 	return variants, nil
+}
+
+func (client *UpsClientImpl) getApplicationId() string {
+	return client.config.ApplicationId
+}
+
+func (client *UpsClientImpl) getServiceInstanceId() string {
+	return client.serviceInstanceId
+}
+
+func (client *UpsClientImpl) getBaseUrl() string {
+	return client.baseUrl
+}
+
+////////////////////////////////////// internal things /////////////////////////////////////
+
+func (client *UpsClientImpl) getAndroidVariants() ([]AndroidVariant, error) {
+	variantsBytes, err := client.getVariantsForPlatformRaw("android")
+	if err != nil {
+		return nil, err
+	}
+	androidVariants := make([]AndroidVariant, 0)
+	json.Unmarshal(variantsBytes, &androidVariants)
+	return androidVariants, nil
+}
+
+// Find a Variant by its variant id
+func (client *UpsClientImpl) hasVariant(platform string, variantId string) *Variant {
+	variants, err := client.getVariantsForPlatform(platform)
+
+	if err != nil {
+		log.Fatal(err)
+
+		// Return true here to prevent creating a new variant when the
+		// request fails
+		return &Variant{}
+	}
+
+	for _, variant := range variants {
+		if variant.VariantID == variantId {
+			return &variant
+		}
+	}
+
+	return nil
+}
+
+func (client *UpsClientImpl) getVariantsForPlatformRaw(platform string) ([]byte, error) {
+	url := fmt.Sprintf("%s/%s/%s", BaseUrl, client.config.ApplicationId, platform)
+	log.Printf("UPS request", url)
+
+	resp, err := http.Get(url)
+	if err != nil {
+		return nil, err
+	}
+
+	defer resp.Body.Close()
+	body, _ := ioutil.ReadAll(resp.Body)
+	return body, nil
 }

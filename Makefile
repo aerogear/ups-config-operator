@@ -1,4 +1,10 @@
 APP_NAME = ups-config-operator
+
+PKG     = github.com/aerogear/$(APP_NAME)
+TOP_SRC_DIRS   = pkg
+PACKAGES     ?= $(shell sh -c "find $(TOP_SRC_DIRS) -name \\*_test.go \
+                   -exec dirname {} \\; | sort | uniq")
+
 DOCKER_LATEST_TAG = docker.io/aerogear/$(APP_NAME):latest
 DOCKER_MASTER_TAG = docker.io/aerogear/$(APP_NAME):master
 RELEASE_TAG ?= $(CIRCLE_TAG)
@@ -11,9 +17,17 @@ generate:
 .PHONY: setup
 setup:
 	glide install --strip-vendor
+	mockery -all -inpkg -dir pkg
+
+.PHONY: test
+test:
+	@echo Running tests:
+	GOCACHE=off go test -cover \
+	  $(addprefix $(PKG)/,$(PACKAGES))
 
 .PHONY: build_linux
 build_linux:
+	mockery -all -inpkg -dir pkg
 	env GOOS=linux GOARCH=amd64 go build cmd/server/main.go
 
 .PHONY: docker_build

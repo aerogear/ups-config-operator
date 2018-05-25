@@ -15,13 +15,24 @@ import (
 	"k8s.io/apimachinery/pkg/watch"
 )
 
-type KubeHelper struct {
+type KubeHelper interface {
+	startSecretWatch() (watch.Interface, error)
+	listSecrets(selector string) (*v1.SecretList, error)
+	deleteSecret(name string)
+	getServiceBindingNameByID(bindingId string) (string, error)
+	findMobileClientConfig(clientId string) *v1.Secret
+	createClientConfigSecret(clientId string, serviceInstanceName string, serviceInstanceId string, pushAppId string) *v1.Secret
+	updateSecret(secret *v1.Secret) (*v1.Secret, error)
+	deleteServiceBinding(bindingName string) error
+}
+
+type KubeHelperImpl struct {
 	k8client *kubernetes.Clientset
 	scclient *sc.Clientset
 }
 
-func NewKubeHelper(k8client *kubernetes.Clientset, scclient *sc.Clientset) *KubeHelper {
-	helper := new(KubeHelper)
+func NewKubeHelper(k8client *kubernetes.Clientset, scclient *sc.Clientset) *KubeHelperImpl {
+	helper := new(KubeHelperImpl)
 
 	helper.k8client = k8client
 	helper.scclient = scclient
@@ -29,17 +40,17 @@ func NewKubeHelper(k8client *kubernetes.Clientset, scclient *sc.Clientset) *Kube
 	return helper
 }
 
-func (helper KubeHelper) startSecretWatch() (watch.Interface, error) {
+func (helper KubeHelperImpl) startSecretWatch() (watch.Interface, error) {
 	return helper.k8client.CoreV1().Secrets(os.Getenv(constants.EnvVarKeyNamespace)).Watch(metav1.ListOptions{})
 }
 
-func (helper KubeHelper) listSecrets(selector string) (*v1.SecretList, error) {
+func (helper KubeHelperImpl) listSecrets(selector string) (*v1.SecretList, error) {
 	filter := metav1.ListOptions{LabelSelector: selector}
 	return helper.k8client.CoreV1().Secrets(os.Getenv(constants.EnvVarKeyNamespace)).List(filter)
 }
 
 // Find a mobile client bound ups config secret
-func (helper KubeHelper) findMobileClientConfig(clientId string) *v1.Secret {
+func (helper KubeHelperImpl) findMobileClientConfig(clientId string) *v1.Secret {
 	filter := metav1.ListOptions{LabelSelector: fmt.Sprintf("clientId=%s,serviceName=ups", clientId)}
 	secrets, err := helper.k8client.CoreV1().Secrets(os.Getenv(constants.EnvVarKeyNamespace)).List(filter)
 
@@ -63,7 +74,7 @@ func (helper KubeHelper) findMobileClientConfig(clientId string) *v1.Secret {
 }
 
 // Find a service binding by its ExternalID
-func (helper KubeHelper) getServiceBindingNameByID(bindingId string) (string, error) {
+func (helper KubeHelperImpl) getServiceBindingNameByID(bindingId string) (string, error) {
 	// Get a list of all service bindings in the namespace and find the one with a matching ExternalID
 	// This is not very efficient and could be improved with a jsonpath query but it looks like client-go
 	// does not support jsonpath or at least I could not find any examples.
@@ -82,12 +93,12 @@ func (helper KubeHelper) getServiceBindingNameByID(bindingId string) (string, er
 	return "", errors.New(fmt.Sprintf("Can't find a binding with ExternalID %s", bindingId))
 }
 
-func (helper KubeHelper) deleteServiceBinding(bindingName string) error {
+func (helper KubeHelperImpl) deleteServiceBinding(bindingName string) error {
 	return helper.scclient.ServicecatalogV1beta1().ServiceBindings(os.Getenv(constants.EnvVarKeyNamespace)).Delete(bindingName, nil)
 }
 
 // Creates a mobile client bound ups config secret
-func (helper KubeHelper) createClientConfigSecret(clientId string, serviceInstanceName string, serviceInstanceId string, pushAppId string) *v1.Secret {
+func (helper KubeHelperImpl) createClientConfigSecret(clientId string, serviceInstanceName string, serviceInstanceId string, pushAppId string) *v1.Secret {
 	configSecretName := fmt.Sprintf("ups-secret-%s-%s", clientId, getRandomIdentifier(5))
 
 	payload := v1.Secret{
@@ -122,12 +133,12 @@ func (helper KubeHelper) createClientConfigSecret(clientId string, serviceInstan
 	return secret
 }
 
-func (helper KubeHelper) updateSecret(secret *v1.Secret) (*v1.Secret, error) {
+func (helper KubeHelperImpl) updateSecret(secret *v1.Secret) (*v1.Secret, error) {
 	return helper.k8client.CoreV1().Secrets(os.Getenv(constants.EnvVarKeyNamespace)).Update(secret)
 }
 
 // Deletes a secret
-func (helper KubeHelper) deleteSecret(name string) {
+func (helper KubeHelperImpl) deleteSecret(name string) {
 	err := helper.k8client.CoreV1().Secrets(os.Getenv(constants.EnvVarKeyNamespace)).Delete(name, nil)
 
 	// TODO: remove error handling here!

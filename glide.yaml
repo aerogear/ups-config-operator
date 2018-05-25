@@ -44,3 +44,5 @@ import:
   subpackages:
   - pkg/client/mobile/clientset/versioned
   - pkg/client/servicecatalog/clientset/versioned
+- package: github.com/stretchr/testify
+  version: v1.2.1
