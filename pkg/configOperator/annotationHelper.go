@@ -12,12 +12,17 @@ import (
 	"github.com/aerogear/ups-config-operator/pkg/constants"
 )
 
-type AnnotationHelper struct {
+type AnnotationHelper interface {
+	addAnnotationToMobileClient(clientId string, appType string, variantUrl string, serviceInstanceName string)
+	removeAnnotationFromMobileClient(clientId string, appType string, serviceInstanceName string)
+}
+
+type AnnotationHelperImpl struct {
 	mobileclient *mc.Clientset
 }
 
-func NewAnnotationHelper(mobileclient *mc.Clientset) *AnnotationHelper {
-	helper := new(AnnotationHelper)
+func NewAnnotationHelper(mobileclient *mc.Clientset) *AnnotationHelperImpl {
+	helper := new(AnnotationHelperImpl)
 
 	helper.mobileclient = mobileclient
 
@@ -25,7 +30,7 @@ func NewAnnotationHelper(mobileclient *mc.Clientset) *AnnotationHelper {
 }
 
 // Creates the JSON string for the mobile-client variant annotation
-func (helper AnnotationHelper) generateVariantAnnotationValue(url string, appType string) ([]byte, error) {
+func (helper AnnotationHelperImpl) generateVariantAnnotationValue(url string, appType string) ([]byte, error) {
 	annotation := VariantAnnotation{
 		Type:  "href",
 		Label: fmt.Sprintf("UPS %s Variant", appType),
@@ -37,7 +42,7 @@ func (helper AnnotationHelper) generateVariantAnnotationValue(url string, appTyp
 
 // Adds an annotation to the mobile client that contains information about this variant
 // (currently URL and Name)
-func (helper AnnotationHelper) AddAnnotationToMobileClient(clientId string, appType string, variantUrl string, serviceInstanceName string) {
+func (helper AnnotationHelperImpl) addAnnotationToMobileClient(clientId string, appType string, variantUrl string, serviceInstanceName string) {
 	client, err := helper.mobileclient.MobileV1alpha1().MobileClients(os.Getenv(constants.EnvVarKeyNamespace)).Get(clientId, metav1.GetOptions{})
 	if err != nil {
 		log.Printf("No mobile client with name %s found", clientId)
@@ -62,7 +67,7 @@ func (helper AnnotationHelper) AddAnnotationToMobileClient(clientId string, appT
 	}
 }
 
-func (helper AnnotationHelper) RemoveAnnotationFromMobileClient(clientId string, appType string, serviceInstanceName string) {
+func (helper AnnotationHelperImpl) removeAnnotationFromMobileClient(clientId string, appType string, serviceInstanceName string) {
 	client, err := helper.mobileclient.MobileV1alpha1().MobileClients(os.Getenv(constants.EnvVarKeyNamespace)).Get(clientId, metav1.GetOptions{})
 	if err != nil {
 		log.Printf("No mobile client with name %s found", clientId)

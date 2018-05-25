@@ -42,16 +42,16 @@ func main() {
 
 	kubeHelper := configOperator.NewKubeHelper(k8client, scclient)
 
-	operator := configOperator.NewConfigOperator(mobileclient, pushClient, annotationHelper, kubeHelper)
+	operator := configOperator.NewConfigOperator(pushClient, annotationHelper, kubeHelper)
 
 	operator.StartService()
 }
 
-func createPushClient(k8client *kubernetes.Clientset) (*configOperator.UpsClient, error) {
+func createPushClient(k8client *kubernetes.Clientset) (*configOperator.UpsClientImpl, error) {
 	upsSecret, err := k8client.CoreV1().Secrets(os.Getenv(constants.EnvVarKeyNamespace)).Get(constants.UpsSecretName, metav1.GetOptions{})
 
 	if err != nil {
-		return &configOperator.UpsClient{}, err
+		return &configOperator.UpsClientImpl{}, err
 	}
 
 	upsBaseURL := string(upsSecret.Data[constants.UpsSecretDataUrlKey])
@@ -61,7 +61,7 @@ func createPushClient(k8client *kubernetes.Clientset) (*configOperator.UpsClient
 		ApplicationId: string(upsSecret.Data["applicationId"]),
 	}
 
-	pushClient := configOperator.NewUpsClient(config, serviceInstanceId, upsBaseURL)
+	pushClient := configOperator.NewUpsClientImpl(config, serviceInstanceId, upsBaseURL)
 
 	return pushClient, nil
 }

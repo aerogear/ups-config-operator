@@ -15,6 +15,12 @@ Currently this needs to use a service account with admin permissions. Use:
 $ kubectl create clusterrolebinding <your namespace>-admin-binding --clusterrole=admin --serviceaccount=<your namespace>:default
 ```
 
+# Development:
+
+* Install Mockery on your machine: <https://github.com/vektra/mockery>       
+* Run `make setup`
+* Run tests: `make test`
+
 ## Usage
 
 Make sure that you are logged in with `oc` and use the right namespace.

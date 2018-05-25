@@ -13,7 +13,6 @@ import (
 	"strings"
 	"time"
 
-	mc "github.com/aerogear/mobile-crd-client/pkg/client/mobile/clientset/versioned"
 	"k8s.io/client-go/pkg/api/v1"
 	"github.com/aerogear/ups-config-operator/pkg/constants"
 )
@@ -21,17 +20,14 @@ import (
 var letters = []rune("abcdefghijklmnopqrstuvwxyz0123456789")
 
 type ConfigOperator struct {
-	mobileclient     *mc.Clientset
-	pushClient       *UpsClient
-	annotationHelper *AnnotationHelper
-	kubeHelper       *KubeHelper
+	pushClient       UpsClient
+	annotationHelper AnnotationHelper
+	kubeHelper       KubeHelper
 }
 
-func NewConfigOperator(mobileclient *mc.Clientset,
-	pushClient *UpsClient, annotationHelper *AnnotationHelper, kubeHelper *KubeHelper) *ConfigOperator {
+func NewConfigOperator(pushClient UpsClient, annotationHelper AnnotationHelper, kubeHelper KubeHelper) *ConfigOperator {
 	op := new(ConfigOperator)
 
-	op.mobileclient = mobileclient
 	op.pushClient = pushClient
 	op.annotationHelper = annotationHelper
 	op.kubeHelper = kubeHelper
@@ -110,7 +106,9 @@ func (op ConfigOperator) handleDeleteSecret(obj runtime.Object) {
 // If a client config is found that references a variant not found in UPS then we clean up the client config by deleting the associated servicebinding.
 func (op ConfigOperator) compareUPSVariantsWithClientConfigs() {
 	// get the UPS related secrets
-	secrets, err := op.getUPSSecrets()
+	selector := fmt.Sprintf("serviceName=ups,pushApplicationId=%s", op.pushClient.getApplicationId())
+	secretsList, err := op.kubeHelper.listSecrets(selector)
+	secrets:= secretsList.Items
 
 	if err != nil {
 		log.Printf("Error searching for ups secrets: %v", err.Error())
@@ -147,13 +145,6 @@ func (op ConfigOperator) compareUPSVariantsWithClientConfigs() {
 			}
 		}
 	}
-}
-
-// getUPSSecrets() returns a list of the secrets that contain the UPS client configs
-func (op ConfigOperator) getUPSSecrets() ([]v1.Secret, error) {
-	selector := fmt.Sprintf("serviceName=ups,pushApplicationId=%s", op.pushClient.config.ApplicationId)
-	secretsList, err := op.kubeHelper.listSecrets(selector)
-	return secretsList.Items, err
 }
 
 // getUPSVariantServiceBindingMappings() takes the list of secrets and returns a list of VariantServiceBindingMappings
@@ -296,7 +287,7 @@ func (op ConfigOperator) removeConfigFromClientSecret(secret *BindingSecret, app
 	log.Printf("Deleting %s configuration from %s", appType, clientId)
 
 	// Remove the annotation also from the mobile client
-	op.annotationHelper.RemoveAnnotationFromMobileClient(clientId, appType, serviceInstanceName)
+	op.annotationHelper.removeAnnotationFromMobileClient(clientId, appType, serviceInstanceName)
 
 	// Get the current config
 	// Retrieve the current config as an object
@@ -347,7 +338,7 @@ func (op ConfigOperator) updateConfiguration(appType string, clientId string, va
 	configSecret := op.kubeHelper.findMobileClientConfig(clientId)
 	if configSecret == nil {
 		// No config secret exists for this client yet. Create one.
-		configSecret = op.kubeHelper.createClientConfigSecret(clientId, serviceInstanceName, op.pushClient.serviceInstanceId, op.pushClient.config.ApplicationId)
+		configSecret = op.kubeHelper.createClientConfigSecret(clientId, serviceInstanceName, op.pushClient.getServiceInstanceId(), op.pushClient.getApplicationId())
 	}
 
 	// Retrieve the current config as an object
@@ -364,7 +355,7 @@ func (op ConfigOperator) updateConfiguration(appType string, clientId string, va
 	}
 
 	// Set the new config
-	configSecret.Data["uri"] = []byte(op.pushClient.baseUrl)
+	configSecret.Data["uri"] = []byte(op.pushClient.getBaseUrl())
 	configSecret.Data["config"] = currentConfigString
 	configSecret.Data["name"] = []byte("ups")
 	configSecret.Data["type"] = []byte("push")
@@ -380,8 +371,8 @@ func (op ConfigOperator) updateConfiguration(appType string, clientId string, va
 
 	// Annotate the mobile client with the variant URL. This is done to display a link to
 	// the variant in the Mobile Client UI in Openshift
-	variantUrl := op.pushClient.baseUrl + "/#/app/" + op.pushClient.config.ApplicationId + "/variants/" + variantId
-	op.annotationHelper.AddAnnotationToMobileClient(clientId, appType, variantUrl, serviceInstanceName)
+	variantUrl := op.pushClient.getBaseUrl() + "/#/app/" + op.pushClient.getApplicationId() + "/variants/" + variantId
+	op.annotationHelper.addAnnotationToMobileClient(clientId, appType, variantUrl, serviceInstanceName)
 
 	_, err = op.kubeHelper.updateSecret(configSecret)
 	if err != nil {
