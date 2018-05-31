@@ -276,6 +276,12 @@ func (op ConfigOperator) handleDeleteVariant(secret *BindingSecret) {
 // secret. If there is only one platform it will delete the whole secret.
 func (op ConfigOperator) removeConfigFromClientSecret(secret *BindingSecret, appType string) (bool, string) {
 	clientId := string(secret.Data["clientId"])
+
+	if clientId == "" {
+		// this secret is not the secret we're looking for
+		return false, ""
+	}
+
 	configSecret := op.kubeHelper.findMobileClientConfig(clientId)
 
 	if configSecret == nil {
@@ -369,10 +375,14 @@ func (op ConfigOperator) updateConfiguration(appType string, clientId string, va
 	}
 	configSecret.Annotations[bindingAnnotation] = bindingId
 
-	// Annotate the mobile client with the variant URL. This is done to display a link to
-	// the variant in the Mobile Client UI in Openshift
-	variantUrl := op.pushClient.getBaseUrl() + "/#/app/" + op.pushClient.getApplicationId() + "/variants/" + variantId
-	op.annotationHelper.addAnnotationToMobileClient(clientId, appType, variantUrl, serviceInstanceName)
+	pushApplicationName, err := op.pushClient.getPushApplicationName()
+	if err != nil {
+		// don't fail because of name not fetched. just use the id as the name
+		pushApplicationName = op.pushClient.getApplicationId()
+	}
+
+	log.Println("Adding annotations to mobile client")
+	op.annotationHelper.addAnnotationToMobileClient(clientId, op.pushClient.getBaseUrl(), op.pushClient.getApplicationId(), pushApplicationName, appType, variantId, serviceInstanceName)
 
 	_, err = op.kubeHelper.updateSecret(configSecret)
 	if err != nil {

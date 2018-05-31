@@ -8,9 +8,9 @@ type MockAnnotationHelper struct {
 	mock.Mock
 }
 
-// addAnnotationToMobileClient provides a mock function with given fields: clientId, appType, variantUrl, serviceInstanceName
-func (_m *MockAnnotationHelper) addAnnotationToMobileClient(clientId string, appType string, variantUrl string, serviceInstanceName string) {
-	_m.Called(clientId, appType, variantUrl, serviceInstanceName)
+// addAnnotationToMobileClient provides a mock function with given fields: clientId, upsUrl, pushApplicationId, pushApplicationName, appType, variantUrl, serviceInstanceName
+func (_m *MockAnnotationHelper) addAnnotationToMobileClient(clientId string, upsUrl string, pushApplicationId string, pushApplicationName string, appType string, variantUrl string, serviceInstanceName string) {
+	_m.Called(clientId, upsUrl, pushApplicationId, pushApplicationName, appType, variantUrl, serviceInstanceName)
 }
 
 // removeAnnotationFromMobileClient provides a mock function with given fields: clientId, appType, serviceInstanceName
