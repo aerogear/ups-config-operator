@@ -210,6 +210,7 @@ func TestConfigOperator_handleAddSecret_whenAndroid_andNoVariantExistsWithSameGo
 	pushClient.On("getApplicationId").Return("myPushApplicationId")
 	pushClient.On("getBaseUrl").Return("http://example.org")
 	pushClient.On("hasAndroidVariant", "myGoogleKey").Return(nil)
+	pushClient.On("getPushApplicationName").Return("myPushAppName", nil)
 	pushClient.On("createAndroidVariant", mock.Anything).Return(true, &AndroidVariant{
 		ProjectNumber: "myProjectNumber",
 		GoogleKey:     "myGoogleKey",
@@ -235,13 +236,12 @@ func TestConfigOperator_handleAddSecret_whenAndroid_andNoVariantExistsWithSameGo
 	}
 
 	kubeHelper.On("createClientConfigSecret", "myClientId", "myServiceInstanceName", "myPushServiceInstanceId", "myPushApplicationId").Return(configSecret)
-	annotationHelper.On("addAnnotationToMobileClient", "myClientId", "android", "http://example.org/#/app/myPushApplicationId/variants/myVariantId", "myServiceInstanceName").Once()
+	annotationHelper.On("addAnnotationToMobileClient", "myClientId", "http://example.org", "myPushApplicationId", "myPushAppName", "android", "myVariantId", "myServiceInstanceName").Once()
 	kubeHelper.On("updateSecret", mock.Anything).Return(nil, nil)
 	kubeHelper.On("deleteSecret", "myBindingSecret").Once()
 
 	op.handleAddSecret(&bindingSecret)
 
-	annotationHelper.AssertCalled(t, "addAnnotationToMobileClient", "myClientId", "android", "http://example.org/#/app/myPushApplicationId/variants/myVariantId", "myServiceInstanceName")
 	kubeHelper.AssertCalled(t, "updateSecret", mock.MatchedBy(func(secret *v1.Secret) bool {
 		// Annotation for Android should be deleted
 		if !reflect.DeepEqual(secret.Annotations, map[string]string{
@@ -301,6 +301,7 @@ func TestConfigOperator_handleAddSecret_whenIOS(t *testing.T) {
 			Secret:    "myVariantSecret",
 		},
 	})
+	pushClient.On("getPushApplicationName").Return("myPushAppName", nil)
 
 	// no existing client config
 	kubeHelper.On("findMobileClientConfig", "myClientId").Return(nil)
@@ -317,13 +318,12 @@ func TestConfigOperator_handleAddSecret_whenIOS(t *testing.T) {
 	}
 
 	kubeHelper.On("createClientConfigSecret", "myClientId", "myServiceInstanceName", "myPushServiceInstanceId", "myPushApplicationId").Return(configSecret)
-	annotationHelper.On("addAnnotationToMobileClient", "myClientId", "ios", "http://example.org/#/app/myPushApplicationId/variants/myVariantId", "myServiceInstanceName").Once()
+	annotationHelper.On("addAnnotationToMobileClient", "myClientId", "http://example.org", "myPushApplicationId", "myPushAppName", "ios", "myVariantId", "myServiceInstanceName").Once()
 	kubeHelper.On("updateSecret", mock.Anything).Return(nil, nil)
 	kubeHelper.On("deleteSecret", "myBindingSecret").Once()
 
 	op.handleAddSecret(&bindingSecret)
 
-	annotationHelper.AssertCalled(t, "addAnnotationToMobileClient", "myClientId", "ios", "http://example.org/#/app/myPushApplicationId/variants/myVariantId", "myServiceInstanceName")
 	kubeHelper.AssertCalled(t, "updateSecret", mock.MatchedBy(func(secret *v1.Secret) bool {
 		// Annotation for Android should be deleted
 		if !reflect.DeepEqual(secret.Annotations, map[string]string{

@@ -44,7 +44,7 @@ const BaseUrl = "http://localhost:8080/rest/applications"
 // fetches the push application name from the UPS system
 func (client *UpsClientImpl) getPushApplicationName() (string, error) {
 	url := fmt.Sprintf("%s/%s", BaseUrl, client.config.ApplicationId)
-	log.Printf("UPS request", url)
+	log.Printf("UPS request: %s", url)
 
 	resp, err := http.Get(url)
 	if err != nil {
@@ -75,7 +75,7 @@ func (client *UpsClientImpl) deleteVariant(platform string, variantId string) bo
 		url := fmt.Sprintf("%s/%s/%s/%s", BaseUrl, client.config.ApplicationId,
 			platform, variant.VariantID)
 
-		log.Printf("UPS request", url)
+		log.Printf("UPS request: %s", url)
 
 		req, err := http.NewRequest(http.MethodDelete, url, nil)
 
@@ -117,7 +117,7 @@ func (client *UpsClientImpl) hasAndroidVariant(key string) *AndroidVariant {
 
 func (client *UpsClientImpl) createAndroidVariant(variant *AndroidVariant) (bool, *AndroidVariant) {
 	url := fmt.Sprintf("%s/%s/android", BaseUrl, client.config.ApplicationId)
-	log.Printf("UPS request", url)
+	log.Printf("UPS request: %s", url)
 
 	payload, err := json.Marshal(variant)
 	if err != nil {
@@ -136,7 +136,7 @@ func (client *UpsClientImpl) createAndroidVariant(variant *AndroidVariant) (bool
 		panic(err.Error())
 	}
 
-	log.Printf("UPS responded with status code ", resp.StatusCode)
+	log.Printf("UPS responded with status code : %s", string(resp.StatusCode))
 
 	defer resp.Body.Close()
 	body, _ := ioutil.ReadAll(resp.Body)
@@ -148,7 +148,7 @@ func (client *UpsClientImpl) createAndroidVariant(variant *AndroidVariant) (bool
 
 func (client *UpsClientImpl) createIOSVariant(variant *IOSVariant) (bool, *IOSVariant) {
 	url := fmt.Sprintf("%s/%s/ios", BaseUrl, client.config.ApplicationId)
-	log.Printf("UPS request", url)
+	log.Printf("UPS request: %s", url)
 
 	production := "true"
 	if !variant.Production {
@@ -192,7 +192,7 @@ func (client *UpsClientImpl) createIOSVariant(variant *IOSVariant) (bool, *IOSVa
 		panic(err.Error())
 	}
 
-	log.Printf("UPS responded with status code: %s ", resp.StatusCode)
+	log.Printf("UPS responded with status code: %s ", string(resp.StatusCode))
 
 	defer resp.Body.Close()
 	b, _ := ioutil.ReadAll(resp.Body)
@@ -275,7 +275,7 @@ func (client *UpsClientImpl) hasVariant(platform string, variantId string) *Vari
 
 func (client *UpsClientImpl) getVariantsForPlatformRaw(platform string) ([]byte, error) {
 	url := fmt.Sprintf("%s/%s/%s", BaseUrl, client.config.ApplicationId, platform)
-	log.Printf("UPS request", url)
+	log.Printf("UPS request: %s", url)
 
 	resp, err := http.Get(url)
 	if err != nil {

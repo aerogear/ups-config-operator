@@ -16,12 +16,13 @@ generate:
 
 .PHONY: setup
 setup:
-	glide install --strip-vendor
+	glide install
 	mockery -all -inpkg -dir pkg
 
 .PHONY: test
 test:
 	@echo Running tests:
+	mockery -all -inpkg -dir pkg
 	GOCACHE=off go test -cover \
 	  $(addprefix $(PKG)/,$(PACKAGES))
 
