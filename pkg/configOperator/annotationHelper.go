@@ -149,7 +149,7 @@ func (helper AnnotationHelperImpl) removeAnnotationFromMobileClient(clientId str
 
 		_, err = helper.mobileclient.MobileV1alpha1().MobileClients(os.Getenv(constants.EnvVarKeyNamespace)).Update(client)
 		if err != nil {
-			log.Printf("Unable to update mobile client %s. Error: %s", client, err.Error())
+			log.Printf("Unable to update mobile client %s. Error: %s", clientId, err.Error())
 		}
 
 	} else {
@@ -166,7 +166,7 @@ func (helper AnnotationHelperImpl) removeAnnotationFromMobileClient(clientId str
 
 		_, err = helper.mobileclient.MobileV1alpha1().MobileClients(os.Getenv(constants.EnvVarKeyNamespace)).Update(client)
 		if err != nil {
-			log.Printf("Unable to update mobile client %s. Error: %s", client, err.Error())
+			log.Printf("Unable to update mobile client %s. Error: %s", clientId, err.Error())
 		}
 	}
 
