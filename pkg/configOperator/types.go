@@ -42,12 +42,6 @@ type PushApplication struct {
 	ApplicationId string `json:"applicationId"`
 }
 
-type VariantAnnotation struct {
-	Label string `json:"label"`
-	Value string `json:"value"`
-	Type  string `json:"type"`
-}
-
 func (this *AndroidVariant) getJson() ([]byte, error) {
 	config := map[string]string{
 		"senderId":      this.ProjectNumber,

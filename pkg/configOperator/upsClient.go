@@ -12,6 +12,7 @@ import (
 )
 
 type UpsClient interface {
+	getPushApplicationName() (string, error)
 	getVariants() ([]Variant, error)
 	hasAndroidVariant(key string) *AndroidVariant
 	createAndroidVariant(variant *AndroidVariant) (bool, *AndroidVariant)
@@ -39,6 +40,31 @@ func NewUpsClientImpl(config *PushApplication, serviceInstanceId string, baseUrl
 }
 
 const BaseUrl = "http://localhost:8080/rest/applications"
+
+// fetches the push application name from the UPS system
+func (client *UpsClientImpl) getPushApplicationName() (string, error) {
+	url := fmt.Sprintf("%s/%s", BaseUrl, client.config.ApplicationId)
+	log.Printf("UPS request", url)
+
+	resp, err := http.Get(url)
+	if err != nil {
+		return "", err
+	}
+
+	defer resp.Body.Close()
+	body, _ := ioutil.ReadAll(resp.Body)
+
+	var pushAppInfo map[string]json.RawMessage
+	err = json.Unmarshal(body, &pushAppInfo)
+	if err != nil {
+		return "", err
+	}
+
+	appNameWithQuotes := string(pushAppInfo["name"])            // --> e.g. "foo"
+	appName := appNameWithQuotes[1 : len(appNameWithQuotes)-1]	// strip the quotes --> foo
+
+	return appName, nil
+}
 
 func (client *UpsClientImpl) deleteVariant(platform string, variantId string) bool {
 	variant := client.hasVariant(platform, variantId)
