@@ -48,9 +48,6 @@ func (helper AnnotationHelperImpl) addAnnotationToMobileClient(clientId string, 
 	upsUrlAnnotationName := fmt.Sprintf(constants.UpsUrlAnnotationNameFormat, serviceInstanceName)
 	upsUrlAnnotationValue := fmt.Sprintf(`{"label":"URL","type":"href","value":"%s"}`, upsUrl)
 
-	extTypeAnnotationName := fmt.Sprintf(constants.ExtTypeAnnotationNameFormat, serviceInstanceName)
-	extTypeAnnotationValue := constants.ExtAnnotationType
-
 	extVariantAnnotationName := fmt.Sprintf(constants.ExtVariantsAnnotationNameFormat, serviceInstanceName)
 	extVariantAnnotationConfigForSingleVariant := variantAnnotationConfig{
 		Type:      appType,
@@ -66,7 +63,6 @@ func (helper AnnotationHelperImpl) addAnnotationToMobileClient(clientId string, 
 
 	client.Annotations[pushAppAnnotationName] = pushAppAnnotationValue
 	client.Annotations[upsUrlAnnotationName] = upsUrlAnnotationValue
-	client.Annotations[extTypeAnnotationName] = extTypeAnnotationValue
 
 	extVariantAnnotationConfigValue = []variantAnnotationConfig{
 		extVariantAnnotationConfigForSingleVariant,
@@ -157,11 +153,9 @@ func (helper AnnotationHelperImpl) removeAnnotationFromMobileClient(clientId str
 
 		pushAppAnnotationName := fmt.Sprintf(constants.PushAppAnnotationNameFormat, serviceInstanceName)
 		upsUrlAnnotationName := fmt.Sprintf(constants.UpsUrlAnnotationNameFormat, serviceInstanceName)
-		extTypeAnnotationName := fmt.Sprintf(constants.ExtTypeAnnotationNameFormat, serviceInstanceName)
 
 		delete(client.Annotations, pushAppAnnotationName)
 		delete(client.Annotations, upsUrlAnnotationName)
-		delete(client.Annotations, extTypeAnnotationName)
 		delete(client.Annotations, extVariantAnnotationName)
 
 		_, err = helper.mobileclient.MobileV1alpha1().MobileClients(os.Getenv(constants.EnvVarKeyNamespace)).Update(client)

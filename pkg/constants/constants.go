@@ -31,10 +31,7 @@ const (
 	BindingDataIOSPassPhraseKey   = "passphrase"
 	BindingDataIOSIsProductionKey = "isProduction"
 
-	ExtAnnotationType = "unifiedpush"
-
 	PushAppAnnotationNameFormat = "org.aerogear.binding.%s/push-application"
 	UpsUrlAnnotationNameFormat = "org.aerogear.binding.%s/ups-url"
-	ExtTypeAnnotationNameFormat = "org.aerogear.binding-ext-type.%s"
 	ExtVariantsAnnotationNameFormat = "org.aerogear.binding-ext.%s/variants"
 )
