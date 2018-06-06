@@ -200,27 +200,23 @@ func (op ConfigOperator) handleAndroidVariant(secret *BindingSecret) {
 	serviceBindingId := string(secret.Data[constants.BindingDataServiceBindingIdKey])
 	serviceInstanceName := string(secret.Data[constants.BindingDataServiceInstanceNameKey])
 
-	if op.pushClient.hasAndroidVariant(googleKey) == nil {
-		payload := &AndroidVariant{
-			ProjectNumber: projectNumber,
-			GoogleKey:     googleKey,
-			Variant: Variant{
-				Name:      clientId,
-				VariantID: uuid.NewV4().String(),
-				Secret:    uuid.NewV4().String(),
-			},
-		}
+	payload := &AndroidVariant{
+		ProjectNumber: projectNumber,
+		GoogleKey:     googleKey,
+		Variant: Variant{
+			Name:      clientId,
+			VariantID: uuid.NewV4().String(),
+			Secret:    uuid.NewV4().String(),
+		},
+	}
 
-		log.Print("Creating a new android variant", payload)
-		success, variant := op.pushClient.createAndroidVariant(payload)
-		if success {
-			config, _ := variant.getJson()
-			op.updateConfiguration("android", clientId, variant.VariantID, config, serviceBindingId, serviceInstanceName)
-		} else {
-			log.Println("No variant has been created in UPS, skipping config secret")
-		}
+	log.Print("Creating a new android variant", payload)
+	success, variant := op.pushClient.createAndroidVariant(payload)
+	if success {
+		config, _ := variant.getJson()
+		op.updateConfiguration("android", clientId, variant.VariantID, config, serviceBindingId, serviceInstanceName)
 	} else {
-		log.Printf("A variant for google key '%s' already exists", googleKey)
+		log.Println("No variant has been created in UPS, skipping config secret")
 	}
 }
 

@@ -7,7 +7,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"github.com/stretchr/testify/mock"
 	"reflect"
-	"github.com/stretchr/testify/assert"
 )
 
 var op *ConfigOperator;
@@ -155,37 +154,6 @@ func TestConfigOperator_handleDeleteSecret_whenThereIs1Variant(t *testing.T) {
 
 	kubeHelper.AssertCalled(t, "deleteSecret", "mySecretName")
 	kubeHelper.AssertNotCalled(t, "updateSecret", mock.Anything)
-}
-
-func TestConfigOperator_handleAddSecret_whenAndroid_andAVariantExistsWithSameGoogleKey(t *testing.T) {
-	setup()
-
-	bindingSecret := BindingSecret{
-		Data: map[string][]byte{
-			"appType":   []byte("Android"),
-			"googleKey": []byte("myGoogleKey"),
-		},
-	}
-	bindingSecret.Labels = map[string]string{
-		"secretType": "mobile-client-binding-secret",
-	}
-	bindingSecret.Name = "myBindingSecret"
-
-	pushClient.On("hasAndroidVariant", "myGoogleKey").Return(&AndroidVariant{
-		GoogleKey: "myGoogleKey",
-	})
-
-	kubeHelper.On("deleteSecret", "myBindingSecret").Once()
-
-	op.handleAddSecret(&bindingSecret)
-
-	assert.Empty(t, annotationHelper.Calls)
-
-	kubeHelper.AssertNotCalled(t, "createClientConfigSecret", mock.Anything)
-	kubeHelper.AssertNotCalled(t, "updateSecret", mock.Anything)
-
-	kubeHelper.AssertExpectations(t)
-	annotationHelper.AssertExpectations(t)
 }
 
 func TestConfigOperator_handleAddSecret_whenAndroid_andNoVariantExistsWithSameGoogleKey(t *testing.T) {
