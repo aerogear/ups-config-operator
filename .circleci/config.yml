@@ -35,6 +35,9 @@ jobs:
       - run:
           name: Install Glide
           command: curl https://glide.sh/get | sh
+      - run:
+          name: Install Mockery
+          command: go get github.com/vektra/mockery/.../
       - run: make setup
       - setup_remote_docker
       - run: make build_linux
@@ -50,6 +53,9 @@ jobs:
       - run:
           name: Install Glide
           command: curl https://glide.sh/get | sh
+      - run:
+          name: Install Mockery
+          command: go get github.com/vektra/mockery/.../
       - run: make setup
       - setup_remote_docker
       - run: make docker_build_release
