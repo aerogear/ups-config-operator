@@ -105,8 +105,14 @@ func (op ConfigOperator) handleDeleteSecret(obj runtime.Object) {
 // against the variants in UPS in order to detect if a variant has been deleted in UPS
 // If a client config is found that references a variant not found in UPS then we clean up the client config by deleting the associated servicebinding.
 func (op ConfigOperator) compareUPSVariantsWithClientConfigs() {
+	pushClient := op.pushClientProvider.getPushClient()
+	if pushClient == nil{
+		log.Printf("Cannot compare UPS variants with client configs since the push client cannot be built")
+		return
+	}
+
 	// get the UPS related secrets
-	selector := fmt.Sprintf("serviceName=ups,pushApplicationId=%s", op.pushClientProvider.getPushClient().getApplicationId())
+	selector := fmt.Sprintf("serviceName=ups,pushApplicationId=%s", pushClient.getApplicationId())
 	secretsList, err := op.kubeHelper.listSecrets(selector)
 	secrets:= secretsList.Items
 
@@ -120,7 +126,7 @@ func (op ConfigOperator) compareUPSVariantsWithClientConfigs() {
 	clientConfigs := op.getUPSVariantServiceBindingMappings(secrets)
 
 	// Get all variants from UPS
-	UPSVariants, err := op.pushClientProvider.getPushClient().getVariants()
+	UPSVariants, err := pushClient.getVariants()
 
 	if err != nil {
 		log.Printf("An error occurred trying to get variants from UPS service: %v", err.Error())
