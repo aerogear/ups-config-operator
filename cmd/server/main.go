@@ -1,9 +1,6 @@
 package main
 
 import (
-	"os"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
 	"log"
 
 	"k8s.io/client-go/kubernetes"
@@ -16,7 +13,6 @@ import (
 	sc "github.com/aerogear/mobile-crd-client/pkg/client/servicecatalog/clientset/versioned"
 
 	"github.com/aerogear/ups-config-operator/pkg/configOperator"
-	"github.com/aerogear/ups-config-operator/pkg/constants"
 )
 
 func main() {
@@ -30,8 +26,7 @@ func main() {
 	k8client := kubernetes.NewForConfigOrDie(config)
 	scclient := sc.NewForConfigOrDie(config)
 	mobileclient := mc.NewForConfigOrDie(config)
-
-	pushClient, err := createPushClient(k8client)
+	pushClientProvider := configOperator.NewUpsClientProviderImpl(k8client)
 
 	if err != nil {
 		log.Printf("error initialising UPS client: %s", err.Error())
@@ -42,26 +37,7 @@ func main() {
 
 	kubeHelper := configOperator.NewKubeHelper(k8client, scclient)
 
-	operator := configOperator.NewConfigOperator(pushClient, annotationHelper, kubeHelper)
+	operator := configOperator.NewConfigOperator(pushClientProvider, annotationHelper, kubeHelper)
 
 	operator.StartService()
-}
-
-func createPushClient(k8client *kubernetes.Clientset) (*configOperator.UpsClientImpl, error) {
-	upsSecret, err := k8client.CoreV1().Secrets(os.Getenv(constants.EnvVarKeyNamespace)).Get(constants.UpsSecretName, metav1.GetOptions{})
-
-	if err != nil {
-		return &configOperator.UpsClientImpl{}, err
-	}
-
-	upsBaseURL := string(upsSecret.Data[constants.UpsSecretDataUrlKey])
-	serviceInstanceId := upsSecret.Labels[constants.UpsSecretLabelServiceInstanceIdKey]
-
-	config := &configOperator.PushApplication{
-		ApplicationId: string(upsSecret.Data["applicationId"]),
-	}
-
-	pushClient := configOperator.NewUpsClientImpl(config, serviceInstanceId, upsBaseURL)
-
-	return pushClient, nil
 }

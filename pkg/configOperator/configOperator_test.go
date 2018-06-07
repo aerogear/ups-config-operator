@@ -11,16 +11,20 @@ import (
 
 var op *ConfigOperator;
 
+var pushClientProvider *MockUpsClientProvider
 var pushClient *MockUpsClient
 var annotationHelper *MockAnnotationHelper
 var kubeHelper *MockKubeHelper
 
 func setup() {
+	pushClientProvider = new(MockUpsClientProvider)
 	pushClient = new(MockUpsClient)
 	annotationHelper = new(MockAnnotationHelper)
 	kubeHelper = new(MockKubeHelper)
 
-	op = NewConfigOperator(pushClient, annotationHelper, kubeHelper)
+	pushClientProvider.On("getPushClient").Return(pushClient)
+
+	op = NewConfigOperator(pushClientProvider, annotationHelper, kubeHelper)
 }
 
 func TestConfigOperator_compareUPSVariantsWithClientConfigs(t *testing.T) {
