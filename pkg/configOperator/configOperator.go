@@ -20,15 +20,15 @@ import (
 var letters = []rune("abcdefghijklmnopqrstuvwxyz0123456789")
 
 type ConfigOperator struct {
-	pushClient       UpsClient
+	pushClientProvider       UpsClientProvider
 	annotationHelper AnnotationHelper
 	kubeHelper       KubeHelper
 }
 
-func NewConfigOperator(pushClient UpsClient, annotationHelper AnnotationHelper, kubeHelper KubeHelper) *ConfigOperator {
+func NewConfigOperator(pushClientProvider UpsClientProvider, annotationHelper AnnotationHelper, kubeHelper KubeHelper) *ConfigOperator {
 	op := new(ConfigOperator)
 
-	op.pushClient = pushClient
+	op.pushClientProvider = pushClientProvider
 	op.annotationHelper = annotationHelper
 	op.kubeHelper = kubeHelper
 
@@ -106,7 +106,7 @@ func (op ConfigOperator) handleDeleteSecret(obj runtime.Object) {
 // If a client config is found that references a variant not found in UPS then we clean up the client config by deleting the associated servicebinding.
 func (op ConfigOperator) compareUPSVariantsWithClientConfigs() {
 	// get the UPS related secrets
-	selector := fmt.Sprintf("serviceName=ups,pushApplicationId=%s", op.pushClient.getApplicationId())
+	selector := fmt.Sprintf("serviceName=ups,pushApplicationId=%s", op.pushClientProvider.getPushClient().getApplicationId())
 	secretsList, err := op.kubeHelper.listSecrets(selector)
 	secrets:= secretsList.Items
 
@@ -120,7 +120,7 @@ func (op ConfigOperator) compareUPSVariantsWithClientConfigs() {
 	clientConfigs := op.getUPSVariantServiceBindingMappings(secrets)
 
 	// Get all variants from UPS
-	UPSVariants, err := op.pushClient.getVariants()
+	UPSVariants, err := op.pushClientProvider.getPushClient().getVariants()
 
 	if err != nil {
 		log.Printf("An error occurred trying to get variants from UPS service: %v", err.Error())
@@ -211,7 +211,7 @@ func (op ConfigOperator) handleAndroidVariant(secret *BindingSecret) {
 	}
 
 	log.Print("Creating a new android variant", payload)
-	success, variant := op.pushClient.createAndroidVariant(payload)
+	success, variant := op.pushClientProvider.getPushClient().createAndroidVariant(payload)
 	if success {
 		config, _ := variant.getJson()
 		op.updateConfiguration("android", clientId, variant.VariantID, config, serviceBindingId, serviceInstanceName)
@@ -246,7 +246,7 @@ func (op ConfigOperator) handleIOSVariant(secret *BindingSecret) {
 		},
 	}
 
-	success, variant := op.pushClient.createIOSVariant(payload)
+	success, variant := op.pushClientProvider.getPushClient().createIOSVariant(payload)
 	if success {
 		config, _ := variant.getJson()
 		op.updateConfiguration("ios", clientId, variant.VariantID, config, serviceBindingId, serviceInstanceName)
@@ -261,7 +261,7 @@ func (op ConfigOperator) handleDeleteVariant(secret *BindingSecret) {
 	success, variantId := op.removeConfigFromClientSecret(secret, appType)
 
 	if success {
-		success := op.pushClient.deleteVariant(appType, variantId)
+		success := op.pushClientProvider.getPushClient().deleteVariant(appType, variantId)
 		if !success {
 			log.Printf("UPS reported an error when deleting variant %s", variantId)
 		}
@@ -338,9 +338,11 @@ func (op ConfigOperator) getVariantIdFromConfig(config string) string {
 // The secret can contain multiple variants (e.g. iOS and Android) but is bound to one mobile client
 func (op ConfigOperator) updateConfiguration(appType string, clientId string, variantId string, newConfig []byte, bindingId string, serviceInstanceName string) {
 	configSecret := op.kubeHelper.findMobileClientConfig(clientId)
+	pushClient := op.pushClientProvider.getPushClient()
+
 	if configSecret == nil {
 		// No config secret exists for this client yet. Create one.
-		configSecret = op.kubeHelper.createClientConfigSecret(clientId, serviceInstanceName, op.pushClient.getServiceInstanceId(), op.pushClient.getApplicationId())
+		configSecret = op.kubeHelper.createClientConfigSecret(clientId, serviceInstanceName, pushClient.getServiceInstanceId(), pushClient.getApplicationId())
 	}
 
 	// Retrieve the current config as an object
@@ -357,7 +359,7 @@ func (op ConfigOperator) updateConfiguration(appType string, clientId string, va
 	}
 
 	// Set the new config
-	configSecret.Data["uri"] = []byte(op.pushClient.getBaseUrl())
+	configSecret.Data["uri"] = []byte(pushClient.getBaseUrl())
 	configSecret.Data["config"] = currentConfigString
 	configSecret.Data["name"] = []byte("ups")
 	configSecret.Data["type"] = []byte("push")
@@ -371,14 +373,14 @@ func (op ConfigOperator) updateConfiguration(appType string, clientId string, va
 	}
 	configSecret.Annotations[bindingAnnotation] = bindingId
 
-	pushApplicationName, err := op.pushClient.getPushApplicationName()
+	pushApplicationName, err := pushClient.getPushApplicationName()
 	if err != nil {
 		// don't fail because of name not fetched. just use the id as the name
-		pushApplicationName = op.pushClient.getApplicationId()
+		pushApplicationName = pushClient.getApplicationId()
 	}
 
 	log.Println("Adding annotations to mobile client")
-	op.annotationHelper.addAnnotationToMobileClient(clientId, op.pushClient.getBaseUrl(), op.pushClient.getApplicationId(), pushApplicationName, appType, variantId, serviceInstanceName)
+	op.annotationHelper.addAnnotationToMobileClient(clientId, pushClient.getBaseUrl(), pushClient.getApplicationId(), pushApplicationName, appType, variantId, serviceInstanceName)
 
 	_, err = op.kubeHelper.updateSecret(configSecret)
 	if err != nil {
