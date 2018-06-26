@@ -7,22 +7,23 @@ import (
 
 	"log"
 
-	"github.com/satori/go.uuid"
-	"k8s.io/apimachinery/pkg/runtime"
 	"fmt"
 	"strings"
 	"time"
 
-	"k8s.io/client-go/pkg/api/v1"
+	"github.com/satori/go.uuid"
+	"k8s.io/apimachinery/pkg/runtime"
+
 	"github.com/aerogear/ups-config-operator/pkg/constants"
+	"k8s.io/client-go/pkg/api/v1"
 )
 
 var letters = []rune("abcdefghijklmnopqrstuvwxyz0123456789")
 
 type ConfigOperator struct {
-	pushClientProvider       UpsClientProvider
-	annotationHelper AnnotationHelper
-	kubeHelper       KubeHelper
+	pushClientProvider UpsClientProvider
+	annotationHelper   AnnotationHelper
+	kubeHelper         KubeHelper
 }
 
 func NewConfigOperator(pushClientProvider UpsClientProvider, annotationHelper AnnotationHelper, kubeHelper KubeHelper) *ConfigOperator {
@@ -38,8 +39,15 @@ func NewConfigOperator(pushClientProvider UpsClientProvider, annotationHelper An
 func (op ConfigOperator) StartService() {
 	log.Print("Entering watch loop")
 
+	// poll UPS in a separate thread
 	go op.startPollingUPS()
-	op.startKubeWatchLoop()
+
+	// call startKubeWatchLoop inside an endless loop
+	// this is blocking so any code called after it will not be run
+	// the reason for this is because the k8s watcher dies if an error/timeout occurs
+	for {
+		op.startKubeWatchLoop()
+	}
 }
 
 // startPollingUPS() is a loop that calls compareUPSVariantsWithClientConfigs() in intervals
@@ -106,7 +114,7 @@ func (op ConfigOperator) handleDeleteSecret(obj runtime.Object) {
 // If a client config is found that references a variant not found in UPS then we clean up the client config by deleting the associated servicebinding.
 func (op ConfigOperator) compareUPSVariantsWithClientConfigs() {
 	pushClient := op.pushClientProvider.getPushClient()
-	if pushClient == nil{
+	if pushClient == nil {
 		log.Printf("Cannot compare UPS variants with client configs since the push client cannot be built")
 		return
 	}
@@ -114,7 +122,7 @@ func (op ConfigOperator) compareUPSVariantsWithClientConfigs() {
 	// get the UPS related secrets
 	selector := fmt.Sprintf("serviceName=ups,pushApplicationId=%s", pushClient.getApplicationId())
 	secretsList, err := op.kubeHelper.listSecrets(selector)
-	secrets:= secretsList.Items
+	secrets := secretsList.Items
 
 	if err != nil {
 		log.Printf("Error searching for ups secrets: %v", err.Error())
