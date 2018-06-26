@@ -39,7 +39,12 @@ func NewConfigOperator(pushClientProvider UpsClientProvider, annotationHelper An
 func (op ConfigOperator) StartService() {
 	log.Print("Entering watch loop")
 
+	// poll UPS in a separate thread
 	go op.startPollingUPS()
+
+	// call startKubeWatchLoop inside an endless loop
+	// this is blocking so any code called after it will not be run
+	// the reason for this is because the k8s watcher dies if an error/timeout occurs
 	for {
 		op.startKubeWatchLoop()
 	}

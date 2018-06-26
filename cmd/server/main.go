@@ -39,5 +39,6 @@ func main() {
 
 	operator := configOperator.NewConfigOperator(pushClientProvider, annotationHelper, kubeHelper)
 
+	// This is blocking. Any code after this will not be called
 	operator.StartService()
 }
