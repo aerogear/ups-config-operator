@@ -272,6 +272,12 @@ func (op ConfigOperator) handleIOSVariant(secret *BindingSecret) {
 // Deletes a configuration from the config secret and from the UPS server
 func (op ConfigOperator) handleDeleteVariant(secret *BindingSecret) {
 	appType := strings.ToLower(string(secret.Data["appType"]))
+
+	// Check if the deleted secret is related to some UPS binding.
+	if appType != "android" && appType != "ios" {
+		return
+	}
+
 	success, variantId := op.removeConfigFromClientSecret(secret, appType)
 
 	if success {
