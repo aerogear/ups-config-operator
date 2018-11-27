@@ -46,7 +46,7 @@ func (helper AnnotationHelperImpl) addAnnotationToMobileClient(clientId string, 
 	pushAppAnnotationValue := fmt.Sprintf(`{"label":"Push Application","type":"href","text":"%s", "value":"%s"}`, pushApplicationName, pushApplicationUrl)
 
 	upsUrlAnnotationName := fmt.Sprintf(constants.UpsUrlAnnotationNameFormat, serviceInstanceName)
-	upsUrlAnnotationValue := fmt.Sprintf(`{"label":"URL","type":"href","value":"%s"}`, upsUrl)
+	upsUrlAnnotationValue := fmt.Sprintf(`{"label":"UPS Admin Console URL","type":"href","value":"%s"}`, upsUrl)
 
 	extVariantAnnotationName := fmt.Sprintf(constants.ExtVariantsAnnotationNameFormat, serviceInstanceName)
 	extVariantAnnotationConfigForSingleVariant := variantAnnotationConfig{
