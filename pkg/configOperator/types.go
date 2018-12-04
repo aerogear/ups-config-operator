@@ -3,20 +3,14 @@ package configOperator
 import (
 	"bytes"
 	"encoding/json"
+	"k8s.io/api/core/v1"
 
 	"github.com/pkg/errors"
-
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 // This is required because importing core/v1/Secret leads to a double import and redefinition
 // of log_dir
-type BindingSecret struct {
-	metav1.TypeMeta              `json:",inline"`
-	metav1.ObjectMeta            `json:"metadata,omitempty" protobuf:"bytes,1,opt,name=metadata"`
-	Data       map[string][]byte `json:"data,omitempty" protobuf:"bytes,2,rep,name=data"`
-	StringData map[string]string `json:"stringData,omitempty" protobuf:"bytes,4,rep,name=stringData"`
-}
+type BindingSecret = v1.Secret
 
 type Variant struct {
 	Name        string `json:"name"`

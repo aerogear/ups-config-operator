@@ -5,12 +5,12 @@ import (
 	"fmt"
 	"os"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/pkg/api/v1"
+	"k8s.io/api/core/v1"
 	"k8s.io/client-go/kubernetes"
 	"log"
 	"github.com/pkg/errors"
 
-	sc "github.com/aerogear/mobile-crd-client/pkg/client/servicecatalog/clientset/versioned"
+	sc "github.com/kubernetes-incubator/service-catalog/pkg/client/clientset_generated/clientset"
 	"math/rand"
 	"k8s.io/apimachinery/pkg/watch"
 )

@@ -15,7 +15,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 
 	"github.com/aerogear/ups-config-operator/pkg/constants"
-	"k8s.io/client-go/pkg/api/v1"
+	"k8s.io/api/core/v1"
 )
 
 var letters = []rune("abcdefghijklmnopqrstuvwxyz0123456789")
