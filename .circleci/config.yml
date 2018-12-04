@@ -17,8 +17,8 @@ jobs:
       - checkout
       # specify any bash command here prefixed with `run: `
       - run:
-          name: Install Glide
-          command: curl https://glide.sh/get | sh
+          name: Install dep
+          command: curl https://raw.githubusercontent.com/golang/dep/master/install.sh | sh
       - run:
           name: Install Mockery
           command: go get github.com/vektra/mockery/.../
@@ -29,12 +29,12 @@ jobs:
   docker_push_master:
     working_directory: /go/src/github.com/aerogear/ups-config-operator
     docker:
-      - image: circleci/golang:1.9
+      - image: circleci/golang:1.10
     steps:
       - checkout
       - run:
-          name: Install Glide
-          command: curl https://glide.sh/get | sh
+          name: Install dep
+          command: curl https://raw.githubusercontent.com/golang/dep/master/install.sh | sh
       - run:
           name: Install Mockery
           command: go get github.com/vektra/mockery/.../
@@ -47,12 +47,12 @@ jobs:
   docker_release:
     working_directory: /go/src/github.com/aerogear/ups-config-operator
     docker:
-      - image: circleci/golang:1.9
+      - image: circleci/golang:1.10
     steps:
       - checkout
       - run:
-          name: Install Glide
-          command: curl https://glide.sh/get | sh
+          name: Install dep
+          command: curl https://raw.githubusercontent.com/golang/dep/master/install.sh | sh
       - run:
           name: Install Mockery
           command: go get github.com/vektra/mockery/.../

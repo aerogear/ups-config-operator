@@ -10,7 +10,7 @@ import (
 	"time"
 
 	mc "github.com/aerogear/mobile-crd-client/pkg/client/mobile/clientset/versioned"
-	sc "github.com/aerogear/mobile-crd-client/pkg/client/servicecatalog/clientset/versioned"
+	sc "github.com/kubernetes-incubator/service-catalog/pkg/client/clientset_generated/clientset"
 
 	"github.com/aerogear/ups-config-operator/pkg/configOperator"
 )

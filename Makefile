@@ -16,7 +16,7 @@ generate:
 
 .PHONY: setup
 setup:
-	glide install
+	dep ensure
 	mockery -all -inpkg -dir pkg
 
 .PHONY: test
