@@ -15,11 +15,11 @@ ENTRYPOINT ["/usr/bin/ups-config-operator"]
 
 LABEL com.redhat.component="mobile-ups-config-operator-container" \
       io.k8s.display-name="Mobile UnifiedPush Config Operator" \
-        io.k8s.description="This is an Operator that keeps variants in the Unifiedpush Server in sync with your mobile project on Openshift. It allows you to use bindings to create variants for your mobile clients, monitors those variants and keeps them in sync should they be deleted on either UPS or Openshift. When creating new variants this Operator will also annotate your mobile clients with all the information required for the mobile UI." \
-        description="This is an Operator that keeps variants in the Unifiedpush Server in sync with your mobile project on Openshift. It allows you to use bindings to create variants for your mobile clients, monitors those variants and keeps them in sync should they be deleted on either UPS or Openshift. When creating new variants this Operator will also annotate your mobile clients with all the information required for the mobile UI." \
-        summary="Operator to sync UnifiedPush Server Variants with Mobile Clients" \
+      io.k8s.description="This is an Operator that keeps variants in the Unifiedpush Server in sync with your mobile project on Openshift. It allows you to use bindings to create variants for your mobile clients, monitors those variants and keeps them in sync should they be deleted on either UPS or Openshift. When creating new variants this Operator will also annotate your mobile clients with all the information required for the mobile UI." \
+      description="This is an Operator that keeps variants in the Unifiedpush Server in sync with your mobile project on Openshift. It allows you to use bindings to create variants for your mobile clients, monitors those variants and keeps them in sync should they be deleted on either UPS or Openshift. When creating new variants this Operator will also annotate your mobile clients with all the information required for the mobile UI." \
+      summary="Operator to sync UnifiedPush Server Variants with Mobile Clients" \
       usage="This image is intended to be used on OpenShift to work with mobile apps and cloud services" \
       maintainer="Red Hat Mobile team" \
       io.openshift.tags="mobile" \
-      name="mobile/mobile-ups-config-operator" \
-      version="1.0.0"
+      name="mobile-1-tech-preview/mobile-ups-config-operator" \
+      version="0.2.2"
