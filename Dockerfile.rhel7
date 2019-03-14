@@ -22,4 +22,4 @@ LABEL com.redhat.component="mobile-ups-config-operator-container" \
       maintainer="Red Hat Mobile team" \
       io.openshift.tags="mobile" \
       name="mobile-1-tech-preview/mobile-ups-config-operator" \
-      version="0.2.2"
+      version="0.2.3"
