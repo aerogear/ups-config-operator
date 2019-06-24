@@ -17,18 +17,18 @@ generate:
 .PHONY: setup
 setup:
 	dep ensure
-	mockery -all -inpkg -dir pkg
+	# mockery -all -inpkg -dir pkg
 
 .PHONY: test
 test:
 	@echo Running tests:
-	mockery -all -inpkg -dir pkg
+	# mockery -all -inpkg -dir pkg
 	GOCACHE=off go test -cover \
 	  $(addprefix $(PKG)/,$(PACKAGES))
 
 .PHONY: build_linux
 build_linux:
-	mockery -all -inpkg -dir pkg
+	# mockery -all -inpkg -dir pkg
 	env GOOS=linux GOARCH=amd64 go build cmd/server/main.go
 
 .PHONY: docker_build
