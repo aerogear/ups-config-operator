@@ -9,7 +9,7 @@
     "pkg/apis/mobile/v1alpha1",
     "pkg/client/mobile/clientset/versioned",
     "pkg/client/mobile/clientset/versioned/scheme",
-    "pkg/client/mobile/clientset/versioned/typed/mobile/v1alpha1",
+    "pkg/client/mobile/clientset/versioned/typed/mobile/v1alpha1"
   ]
   pruneopts = "UT"
   revision = "11e8bb8fb2ab06c7625d8fcc5a3833bbf1cfaaeb"
@@ -34,7 +34,7 @@
   name = "github.com/gogo/protobuf"
   packages = [
     "proto",
-    "sortkeys",
+    "sortkeys"
   ]
   pruneopts = "UT"
   revision = "c0656edd0d9eab7c66d1eb0c568f9039345796f7"
@@ -54,7 +54,7 @@
     "ptypes",
     "ptypes/any",
     "ptypes/duration",
-    "ptypes/timestamp",
+    "ptypes/timestamp"
   ]
   pruneopts = "UT"
   revision = "b4deda0973fb4c70b50d226b1af49f3da59f5265"
@@ -73,7 +73,7 @@
   packages = [
     "OpenAPIv2",
     "compiler",
-    "extensions",
+    "extensions"
   ]
   pruneopts = "UT"
   revision = "0c5108395e2debce0d731cf0287ddf7242066aba"
@@ -97,7 +97,7 @@
     "pkg/client/clientset_generated/clientset/scheme",
     "pkg/client/clientset_generated/clientset/typed/servicecatalog/v1beta1",
     "pkg/client/clientset_generated/clientset/typed/settings/v1alpha1",
-    "pkg/filter",
+    "pkg/filter"
   ]
   pruneopts = "UT"
   revision = "93aff08d00569edecf965b1d8e473520daa9c037"
@@ -170,7 +170,7 @@
   name = "github.com/stretchr/testify"
   packages = [
     "assert",
-    "mock",
+    "mock"
   ]
   pruneopts = "UT"
   revision = "c679ae2cc0cb27ec3293fea7e254e47386f05d69"
@@ -190,7 +190,7 @@
     "http2",
     "http2/hpack",
     "idna",
-    "lex/httplex",
+    "lex/httplex"
   ]
   pruneopts = "UT"
   revision = "1c05540f6879653db88113bc4a2b70aec4bd491f"
@@ -200,7 +200,7 @@
   name = "golang.org/x/sys"
   packages = [
     "unix",
-    "windows",
+    "windows"
   ]
   pruneopts = "UT"
   revision = "95c6576299259db960f6c5b9b69ea52422860fce"
@@ -217,7 +217,7 @@
     "unicode/bidi",
     "unicode/cldr",
     "unicode/norm",
-    "unicode/rangetable",
+    "unicode/rangetable"
   ]
   pruneopts = "UT"
   revision = "b19bf474d317b857955b12035d2c5acb57ce8b01"
@@ -275,7 +275,7 @@
     "settings/v1alpha1",
     "storage/v1",
     "storage/v1alpha1",
-    "storage/v1beta1",
+    "storage/v1beta1"
   ]
   pruneopts = "UT"
   revision = "73d903622b7391f3312dcbac6483fed484e185f8"
@@ -320,7 +320,7 @@
     "pkg/util/yaml",
     "pkg/version",
     "pkg/watch",
-    "third_party/forked/golang/reflect",
+    "third_party/forked/golang/reflect"
   ]
   pruneopts = "UT"
   revision = "302974c03f7e50f16561ba237db776ab93594ef6"
@@ -373,7 +373,7 @@
     "transport",
     "util/cert",
     "util/flowcontrol",
-    "util/integer",
+    "util/integer"
   ]
   pruneopts = "UT"
   revision = "23781f4d6632d88e869066eaebb743857aa1ef9b"
@@ -393,7 +393,7 @@
     "k8s.io/apimachinery/pkg/runtime",
     "k8s.io/apimachinery/pkg/watch",
     "k8s.io/client-go/kubernetes",
-    "k8s.io/client-go/rest",
+    "k8s.io/client-go/rest"
   ]
   solver-name = "gps-cdcl"
   solver-version = 1

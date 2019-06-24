@@ -43,7 +43,7 @@ func createPushClient(k8client *kubernetes.Clientset) (*UpsClientImpl, error) {
 	upsSecret, err := k8client.CoreV1().Secrets(os.Getenv(constants.EnvVarKeyNamespace)).Get(constants.UpsSecretName, metav1.GetOptions{})
 
 	if err != nil {
-		return &UpsClientImpl{}, err
+		return nil, err
 	}
 
 	upsBaseURL := string(upsSecret.Data[constants.UpsSecretDataUrlKey])
